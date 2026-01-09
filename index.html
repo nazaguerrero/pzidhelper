@@ -208,8 +208,8 @@
                 d.className = 'mod-item';
                 d.draggable = true;
                 d.dataset.wid = m.wid;
+                d.dataset.name = m.name; // Crucial for highlighting
                 
-                // Construct the inner HTML
                 d.innerHTML = `
                     <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
                     <div style="display:flex; gap:5px;">
@@ -218,22 +218,14 @@
                     </div>
                 `;
                 
-                // Button Click Events
                 d.querySelector('.edit-btn').onclick = (e) => {
                     e.stopPropagation();
                     const label = d.querySelector('.mod-id-label');
                     const input = document.createElement('input');
                     input.className = 'edit-input';
                     input.value = m.name;
-                    
-                    input.onblur = () => {
-                        m.name = input.value.trim();
-                        saveToDisk();
-                        render();
-                    };
-                    
+                    input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
                     input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
-                    
                     label.replaceWith(input);
                     input.focus();
                 };
@@ -245,9 +237,16 @@
                     render();
                 };
                 
-                // Drag Events
-                d.ondragstart = () => d.classList.add('dragging');
-                d.ondragend = () => { d.classList.remove('dragging'); saveNewOrder(); };
+                // DRAG START - TRIGGER HIGHLIGHT
+                d.ondragstart = () => {
+                    d.classList.add('dragging');
+                    highlightOutput(m.wid, m.name);
+                };
+                
+                d.ondragend = () => {
+                    d.classList.remove('dragging');
+                    render(); // Re-render to clear highlights
+                };
 
                 list.appendChild(d);
             });
@@ -255,27 +254,57 @@
         updateOut();
     }
 
+function highlightOutput(wid, name) {
+        const outW = document.getElementById('outW');
+        const outM = document.getElementById('outM');
+        
+        // Refresh text first so we don't stack highlights
+        updateOut(); 
+
+        // Highlight Workshop ID
+        outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
+        
+        // Highlight Mod IDs (handles multiples with semicolons)
+        const parts = name.split(';');
+        let mContent = outM.innerHTML;
+        parts.forEach(p => {
+            if(p.trim()) {
+                const reg = new RegExp(`(${p.trim()})`, 'g');
+                mContent = mContent.replace(reg, `<span class="highlight-text">$1</span>`);
+            }
+        });
+        outM.innerHTML = mContent;
+    }
+
     function saveNewOrder() {
         const currentItems = [...document.querySelectorAll('.mod-item')];
         const newMods = [];
         currentItems.forEach(item => {
             const wid = item.dataset.wid;
-            const existingMod = mods.find(m => m.wid === wid);
-            if(existingMod) newMods.push(existingMod);
+            // Get current name from the label/data in case it was just edited
+            const name = item.querySelector('.mod-id-label')?.innerText || item.dataset.name;
+            newMods.push({ wid: wid, name: name });
         });
         mods = newMods;
         saveToDisk();
         updateOut();
     }
 
+    // UPDATED DRAGOVER - REAL TIME HIGHLIGHTING
     document.getElementById('modlist').addEventListener('dragover', e => {
         e.preventDefault();
         const dragging = document.querySelector('.dragging');
         if (!dragging) return;
+        
         const list = document.getElementById('modlist');
         const afterElement = getDragAfterElement(list, e.clientY);
         if (afterElement == null) list.appendChild(dragging);
         else list.insertBefore(dragging, afterElement);
+        
+        // Update the string order in the boxes while dragging
+        saveNewOrder();
+        // Keep the highlight active on the item being moved
+        highlightOutput(dragging.dataset.wid, dragging.querySelector('.mod-id-label').innerText);
     });
 
     function getDragAfterElement(container, y) {
@@ -340,4 +369,5 @@
 </script>
 </body>
 </html>
+
 
