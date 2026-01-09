@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PZ B42.13.1 IDhelper</title>
+    <title>PZ B42.13.1 IDhelper Pro</title>
     <style>
         :root { 
             --bg: #111; --text: #eee; --accent: #ff6600; --card: #222; 
@@ -15,7 +15,6 @@
         .container { max-width: 800px; margin: 0 auto; }
         h1 { color: var(--accent); text-align: center; margin-bottom: 0.5rem; }
         
-        /* Version Toggle Styles */
         .version-toggle {
             display: flex; justify-content: center; align-items: center; gap: 10px;
             margin-bottom: 20px; background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333;
@@ -37,7 +36,7 @@
             cursor: grab; border: 1px solid #333; transition: all 0.2s ease;
         }
         .mod-item:hover { border-color: var(--accent); background: #2a2a2a; }
-        .mod-item.dragging { opacity: 0.8; border: 2px solid var(--accent) !important; background: #333; transform: scale(1.02); }
+        .mod-item.dragging { opacity: 0.5; border: 2px dashed var(--accent) !important; background: #333; }
 
         .edit-input { background: #000; color: var(--output); border: 1px solid var(--accent); padding: 4px; font-family: monospace; width: 250px; font-size: 1rem; border-radius: 4px; }
 
@@ -49,7 +48,7 @@
         .search-item-btn { width: 100%; text-align: left; padding: 12px; background: transparent; color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; display: block; }
         .search-item-btn:hover { background: #333; }
 
-        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; min-height: 50px;}
+        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; min-height: 50px;}
         .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; }
 
         @keyframes flash-success { 0% { background-color: #004400; } 100% { background-color: #000000; } }
@@ -115,7 +114,7 @@
         function updateToggleUI() {
             btn41.classList.toggle('active', !isB42);
             btn42.classList.toggle('active', isB42);
-            render(); // Re-render to update leading slashes and list
+            render(); 
         }
 
         const addBtn = document.getElementById('addBtn');
@@ -184,15 +183,9 @@
             if (!d || d.result !== 1) return null;
 
             const description = d.description || "";
-            const idPattern = /mod\s*id/gi;
-            const matches = description.match(idPattern) || [];
             const firstID = description.match(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
             
-            if (matches.length > 1) {
-                document.getElementById('status').textContent = "⚠️ " + matches.length + " Mod IDs detected! Use ✎ to add others.";
-            } else {
-                document.getElementById('status').textContent = "Added: " + firstID;
-            }
+            document.getElementById('status').textContent = "Added: " + firstID;
             return { wid: id, name: firstID };
         } catch (e) { return null; }
     }
@@ -226,7 +219,6 @@
                 d.className = 'mod-item';
                 d.draggable = true;
                 d.dataset.wid = m.wid;
-                d.dataset.name = m.name;
                 
                 d.innerHTML = `
                     <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
@@ -236,14 +228,20 @@
                     </div>
                 `;
                 
+                // Edit Logic
                 d.querySelector('.edit-btn').onclick = (e) => {
                     e.stopPropagation();
                     const label = d.querySelector('.mod-id-label');
                     const input = document.createElement('input');
                     input.className = 'edit-input';
                     input.value = m.name;
+
+                    // Propagation fix: prevent typing from triggering drag
+                    input.onmousedown = (ev) => ev.stopPropagation();
+                    
                     input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
                     input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
+                    
                     label.replaceWith(input);
                     input.focus();
                 };
@@ -278,17 +276,13 @@
 
         outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
         
-        const parts = name.split(';');
+        const parts = name.split(';').map(p => p.trim()).filter(p => p !== "");
         let mContent = outM.innerHTML;
         parts.forEach(p => {
-            const clean = p.trim();
-            if(clean) {
-                const searchStr = isB42 ? `\\${clean}` : clean;
-                // Double escape for regex since backslash is a special char
-                const escaped = searchStr.replace(/\\/g, '\\\\');
-                const reg = new RegExp(`(${escaped})`, 'g');
-                mContent = mContent.replace(reg, `<span class="highlight-text">$1</span>`);
-            }
+            const searchStr = isB42 ? `\\${p}` : p;
+            const escaped = searchStr.replace(/\\/g, '\\\\');
+            const reg = new RegExp(`(${escaped})`, 'g');
+            mContent = mContent.replace(reg, `<span class="highlight-text">$1</span>`);
         });
         outM.innerHTML = mContent;
     }
@@ -314,9 +308,7 @@
         const afterElement = getDragAfterElement(list, e.clientY);
         if (afterElement == null) list.appendChild(dragging);
         else list.insertBefore(dragging, afterElement);
-        
         saveNewOrder();
-        highlightOutput(dragging.dataset.wid, dragging.querySelector('.mod-id-label').innerText);
     });
 
     function getDragAfterElement(container, y) {
