@@ -180,8 +180,31 @@
             <button onclick="addManual()">Add Manually</button>
         </div>
 
-        <div id="output"></div>
-        <button id="copybtn" style="display:none;" onclick="copyToClipboard()">Copy both lines to clipboard</button>
+        <div id="output-area" style="margin-top: 2rem;">
+  <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: space-between;">
+    
+    <!-- WorkshopItems -->
+    <div style="flex: 1; min-width: 280px;">
+      <strong>WorkshopItems line</strong>  
+      <small>(paste near the top or [Workshop] section)</small>
+      <pre id="workshop-line" style="background: #000; color: #0f0; padding: 1rem; border: 1px solid #333; border-radius: 6px; overflow-x: auto; margin: 0.5rem 0; font-family: monospace; white-space: pre;"></pre>
+      <button onclick="copyWorkshop()" style="background: #006600; color: white; padding: 0.8rem 1.2rem; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">📋 Copy WorkshopItems</button>
+    </div>
+    
+    <!-- Mods -->
+    <div style="flex: 1; min-width: 280px;">
+      <strong>Mods line</strong>  
+      <small>(paste lower in [General] or mod section)</small>
+      <pre id="mods-line" style="background: #000; color: #0f0; padding: 1rem; border: 1px solid #333; border-radius: 6px; overflow-x: auto; margin: 0.5rem 0; font-family: monospace; white-space: pre;"></pre>
+      <button onclick="copyMods()" style="background: #006600; color: white; padding: 0.8rem 1.2rem; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">📋 Copy Mods</button>
+    </div>
+  </div>
+
+  <!-- Optional combined copy (you can remove this block if you don't want it) -->
+  <button id="copyBothBtn" style="display: none; background: #444; color: white; padding: 1rem 1.5rem; font-size: 1.1rem; margin-top: 1.5rem; width: 100%; max-width: 320px; border: none; border-radius: 6px; cursor: pointer;" 
+          onclick="copyBoth()">Copy Both Lines Together</button>
+</div>
+        
 
     </div>
 
@@ -212,21 +235,39 @@ async function fetchModInfo(input) {
     status.textContent = `Searching for "${input}"...`;
     try {
       const params = new URLSearchParams({
-        appid: '108600',
-        searchtext: input,
-        section: 'readytouseitems',
-        browsesort: 'textsearch',
-        days: '-1',
-        p: '1'
-      });
+  appid: '108600',
+  searchtext: input,
+  section: 'readytouseitems',
+  // browsesort: 'textsearch',  ← comment out or change to 'trend'
+  days: '-1',
+  p: '1',
+  requiredtags: ['mod']
+});
       const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`, {
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
       const text = await resp.text();
-      const match = text.match(/filedetails\/\?id=(\d+)/);
-      if (match) {
-        wid = match[1];
-        status.textContent += ` → found ID ${wid}`;
+      const match = text.match(/filedetails\/\?id=(\d+)/g);  // get all matches
+if (match) {
+  // Skip known junk IDs like the policy one
+  const junkIds = ['2872282653'];
+  for (const m of match) {
+    const id = m.match(/(\d+)/)[1];
+    if (!junkIds.includes(id)) {
+      wid = id;
+      break;
+    }
+  }
+  if (wid) status.textContent += ` → found ID ${wid}`;
+    // Add warning if we had to skip the policy guide (meaning it was the first result)
+    if (match[0].includes('2872282653')) {
+      status.textContent += ' (Warning: Steam search showed "Modding Policy" guide first — verify this is the correct mod!)';
+    }
+    } else {
+    // All matches were junk → no real mod found
+    status.textContent = 'No valid mod found (Steam showed only the Modding Policy guide or nothing relevant). Try a more specific name, full URL, or numeric ID.';
+    return null;
+}
       } else {
         status.textContent = 'No results found on Steam Workshop.';
         return null;
@@ -333,27 +374,53 @@ function renderList() {
 }
 
 function updateOutput() {
-  const outputEl = document.getElementById('output');
-  const copyBtn = document.getElementById('copybtn');
+  const workshopEl = document.getElementById('workshop-line');
+  const modsEl     = document.getElementById('mods-line');
+  const bothBtn    = document.getElementById('copyBothBtn');
+
   if (mods.length === 0) {
-    outputEl.textContent = '';
-    copyBtn.style.display = 'none';
+    workshopEl.textContent = '';
+    modsEl.textContent     = '';
+    if (bothBtn) bothBtn.style.display = 'none';
     return;
   }
 
-  const wids = mods.map(m => m.wid).join(';');
-  const names = mods.map(m => '\\' + m.name).join(';');  // B42.13.1 leading \
+  const wids  = mods.map(m => m.wid).join(';');
+  const names = mods.map(m => '\\' + m.name).join(';');
 
-  outputEl.textContent = `WorkshopItems=${wids}\nMods=${names}`;
-  copyBtn.style.display = 'block';
+  workshopEl.textContent = `WorkshopItems=${wids}`;
+  modsEl.textContent     = `Mods=${names}`;
+
+  if (bothBtn) bothBtn.style.display = 'block';
 }
 
-function copyToClipboard() {
-  const text = document.getElementById('output').textContent;
+function copyWorkshop() {
+  const text = document.getElementById('workshop-line').textContent;
   navigator.clipboard.writeText(text).then(() => {
-    alert('Copied to clipboard!\nPaste directly into servertest.ini');
+    alert('WorkshopItems line copied!');
   }).catch(() => {
-    alert('Copy failed – select and Ctrl+C manually.');
+    alert('Copy failed – select the text manually.');
+  });
+}
+
+function copyMods() {
+  const text = document.getElementById('mods-line').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Mods line copied!');
+  }).catch(() => {
+    alert('Copy failed – select the text manually.');
+  });
+}
+
+function copyBoth() {
+  const wids  = mods.map(m => m.wid).join(';');
+  const names = mods.map(m => '\\' + m.name).join(';');
+  const text  = `WorkshopItems=${wids}\nMods=${names}`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Both lines copied together!\nPaste where needed in your .ini');
+  }).catch(() => {
+    alert('Copy failed – select manually.');
   });
 }
 </script>
@@ -362,4 +429,5 @@ function copyToClipboard() {
 
 
 </html>
+
 
