@@ -25,8 +25,9 @@
         .mod-item { 
             background: var(--card); padding: 12px; margin: 8px 0; border-radius: 6px; 
             display: flex; justify-content: space-between; align-items: center; 
-            cursor: grab; border: 1px solid #333; 
+            cursor: grab; border: 1px solid #333; transition: all 0.2s ease;
         }
+        .mod-item:hover { border-color: var(--accent); background: #2a2a2a; }
         .mod-item.dragging { opacity: 0.8; border: 2px solid var(--accent) !important; background: #333; transform: scale(1.02); }
 
         .search-results-list { 
@@ -38,10 +39,8 @@
         .search-item-btn:hover { background: #333; }
 
         pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; }
-        
         .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; }
 
-        /* FIXED ANIMATION */
         @keyframes flash-success {
             0% { background-color: #004400; }
             100% { background-color: #000000; }
@@ -56,13 +55,6 @@
         .duplicate-shake { animation: shake 0.4s ease-in-out; border-color: var(--danger) !important; }
 
         .manual-add { margin-top: 30px; padding-top: 20px; border-top: 1px solid #444; }
-
-        .mod-item:hover {
-    border-color: var(--accent);
-    background: #2a2a2a;
-    transition: all 0.2s ease;
-}
-        
     </style>
 </head>
 <body>
@@ -105,10 +97,8 @@
     let mods = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        // 1. Load data FIRST
         loadFromDisk(); 
 
-        // 2. Then attach listeners
         const addBtn = document.getElementById('addBtn');
         const manBtn = document.getElementById('manBtn');
         const mainInput = document.getElementById('mainInput');
@@ -123,32 +113,20 @@
         if (copyW) copyW.onclick = () => copyText('outW');
         if (copyM) copyM.onclick = () => copyText('outM');
         
-        // 3. Render whatever was loaded
         render(); 
     });
 
-    // --- STORAGE LOGIC ---
     function saveToDisk() {
         try {
-            const data = JSON.stringify(mods);
-            localStorage.setItem('pz_helper_mods', data);
-            console.log("Saved to storage:", data); // Check F12 console to see this
-        } catch (e) {
-            console.error("Save failed:", e);
-        }
+            localStorage.setItem('pz_helper_mods', JSON.stringify(mods));
+        } catch (e) { console.error("Save failed:", e); }
     }
 
     function loadFromDisk() {
         try {
             const saved = localStorage.getItem('pz_helper_mods');
-            if (saved) {
-                mods = JSON.parse(saved);
-                console.log("Loaded from storage:", mods);
-            }
-        } catch (e) {
-            console.error("Load failed:", e);
-            mods = [];
-        }
+            if (saved) { mods = JSON.parse(saved); }
+        } catch (e) { mods = []; }
     }
 
     async function handleAdd() {
@@ -220,19 +198,21 @@
     function render() {
         const list = document.getElementById('modlist');
         list.innerHTML = mods.length ? `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-    <h3>Added Mods (${mods.length}):</h3>
-    <button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>
-</div>` : '';
+            <h3>Added Mods (${mods.length}):</h3>
+            <button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>
+        </div>` : '';
         
         if(document.getElementById('clrBtn')) {
             document.getElementById('clrBtn').onclick = () => { 
-    if(confirm("This will permanently delete your saved list. Are you sure?")) { 
-        mods=[]; 
-        localStorage.removeItem('pz_helper_mods'); // Wipe it from memory too
-        render(); 
-    } 
-};
+                if(confirm("This will permanently delete your saved list. Are you sure?")) { 
+                    mods=[]; 
+                    localStorage.removeItem('pz_helper_mods');
+                    render(); 
+                } 
+            };
+        }
 
+        // Loop through and create items
         mods.forEach((m, i) => {
             const d = document.createElement('div');
             d.className = 'mod-item';
@@ -261,6 +241,7 @@
             list.appendChild(d);
         });
 
+        // Dragover listener
         list.addEventListener('dragover', e => {
             e.preventDefault();
             const dragging = document.querySelector('.dragging');
@@ -315,21 +296,18 @@
     function handleManual() {
         const wEl = document.getElementById('manWID');
         const nEl = document.getElementById('manMID');
-        const w = wEl.value.trim();
-        const n = nEl.value.trim();
-        if (w && n) {
-            addModToList({wid:w, name:n});
+        if (wEl.value.trim() && nEl.value.trim()) {
+            addModToList({wid: wEl.value.trim(), name: nEl.value.trim()});
             wEl.value = ''; nEl.value = '';
         }
     }
 
     function copyText(id) {
         const el = document.getElementById(id);
-        const t = el.innerText; 
-        if (t) {
-            navigator.clipboard.writeText(t).then(() => {
+        if (el.innerText) {
+            navigator.clipboard.writeText(el.innerText).then(() => {
                 el.classList.remove('copy-flash');
-                void el.offsetWidth; // Force reflow to restart animation
+                void el.offsetWidth; 
                 el.classList.add('copy-flash');
             });
         }
@@ -351,18 +329,3 @@
             const b = document.createElement('button');
             b.className = 'search-item-btn';
             b.innerHTML = `<b>${item.title}</b><small>ID: ${item.wid}</small>`;
-            b.onclick = async () => {
-                const details = await getDetails(item.wid);
-                if (details) addModToList(details);
-                list.remove();
-            };
-            list.appendChild(b);
-        });
-        container.appendChild(list);
-    }
-})();
-</script>
-</body>
-</html>
-
-
