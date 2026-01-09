@@ -160,7 +160,7 @@
 
     <div class="container">
 
-        <h1>Project Zomboid B42.13.1 Mod Grabber</h1>
+        <h1>Project Zomboid B42.13.1 ID Helper</h1>
         <p>Paste Workshop ID, full Steam URL, or mod name → Add → repeat → copy the lines below.</p>
         <p><strong>B42.13.1 ready:</strong> Mods get leading <code>\</code> (e.g. <code>\Hydrocraft</code>).</p>
 
@@ -238,10 +238,10 @@ if (!wid) {
       appid: '108600',
       searchtext: input,
       section: 'readytouseitems',
-      // browsesort: 'textsearch',  // commented out - good choice
+      // browsesort: 'textsearch',  // keep commented if you prefer default sort
       days: '-1',
       p: '1',
-      requiredtags: ['mod']
+      // No requiredtags here anymore
     });
 
     const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`, {
@@ -441,6 +441,7 @@ function copyBoth() {
 
 
 </html>
+
 
 
 
