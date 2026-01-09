@@ -238,54 +238,55 @@ if (!wid) {
       appid: '108600',
       searchtext: input,
       section: 'readytouseitems',
-      // browsesort: 'textsearch',  // keep commented if you prefer default sort
+      browsesort: 'trend',          // ← changed to trend (popular first)
       days: '-1',
-      p: '1',
-      // No requiredtags here anymore
+      p: '1'
+      // no requiredtags anymore
     });
 
     const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`, {
       headers: { 'User-Agent': 'Mozilla/5.0' }
     });
 
-    if (!resp.ok) {
-      throw new Error(`Search request failed: ${resp.status}`);
-    }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
     const text = await resp.text();
-    const match = text.match(/filedetails\/\?id=(\d+)/g); // global match → array of full matches
 
-    if (match && match.length > 0) {
-      const junkIds = ['2872282653'];
-      let candidateWid = null;
+    // Extract ALL potential mod links + titles
+    const results = [];
+    const itemRegex = /<a href="https:\/\/steamcommunity.com\/sharedfiles\/filedetails\/\?id=(\d+)"[^>]*>([^<]+)<\/a>/gi;
+    let match;
 
-      for (const m of match) {
-        const id = m.match(/(\d+)/)[1];
-        if (!junkIds.includes(id)) {
-          candidateWid = id;
-          break;
-        }
+    while ((match = itemRegex.exec(text)) !== null) {
+      const id = match[1];
+      let title = match[2].trim();
+
+      // Clean up title a bit (remove HTML entities if any)
+      title = title.replace(/&[^;]+;/g, '');
+
+      // Skip junk/policy
+      if (id === '2872282653' || title.toLowerCase().includes('policy') || title.toLowerCase().includes('guideline')) {
+        continue;
       }
 
-      if (candidateWid) {
-        wid = candidateWid;
-        status.textContent += ` → found ID ${wid}`;
+      results.push({ wid: id, title: title });
+    }
 
-        // Warning if policy guide was the very first result
-        if (match[0].includes('2872282653')) {
-          status.textContent += ' (Warning: Steam search showed "Modding Policy" guide first — verify this is the correct mod!)';
-        }
-      } else {
-        status.textContent = 'No valid mod found (only Modding Policy guide or junk results). Try full URL or numeric ID.';
-        return null;
-      }
-    } else {
-      status.textContent = 'No results found on Steam Workshop.';
+    // Limit to first 5 reasonable results
+    const candidates = results.slice(0, 5);
+
+    if (candidates.length === 0) {
+      status.textContent = 'No valid mod results found. Try a more specific name, full URL, or numeric ID.';
       return null;
     }
+
+    // Show selection UI
+    showModSelection(candidates, input);
+    return null; // Don't add anything yet — wait for user choice
+
   } catch (e) {
     status.textContent = 'Search failed: ' + e.message;
-    console.error(e); // ← helps debugging in browser console
+    console.error(e);
     return null;
     }
   }
@@ -423,7 +424,94 @@ function copyMods() {
     alert('Copy failed – select the text manually.');
   });
 }
+        
+function showModSelection(candidates, searchInput) {
+  const status = document.getElementById('status');
+  status.innerHTML = `Multiple matches found for "${searchInput}". Choose the correct one:<br>`;
 
+  const list = document.createElement('div');
+  list.style.marginTop = '1rem';
+  list.style.display = 'flex';
+  list.style.flexDirection = 'column';
+  list.style.gap = '0.75rem';
+
+  candidates.forEach((cand, index) => {
+    const btn = document.createElement('button');
+    btn.textContent = `${index + 1}. ${cand.title} (ID: ${cand.wid})`;
+    btn.style.padding = '0.75rem';
+    btn.style.background = '#444';
+    btn.style.color = 'white';
+    btn.style.border = 'none';
+    btn.style.borderRadius = '4px';
+    btn.style.cursor = 'pointer';
+    btn.style.textAlign = 'left';
+
+    btn.onclick = async () => {
+      status.textContent = `Fetching details for ${cand.title}...`;
+      const info = await getDetailsOnly(cand.wid); // we'll define this next
+      if (info) {
+        if (mods.some(m => m.wid === info.wid)) {
+          status.textContent = 'Already added.';
+          return;
+        }
+        mods.push(info);
+        renderList();
+        updateOutput();
+        status.textContent = `Added: ${info.name} (ID ${info.wid})`;
+      }
+      list.remove(); // clean up selection UI
+    };
+
+    list.appendChild(btn);
+  });
+
+  status.appendChild(list);
+}
+        
+async function getDetailsOnly(wid) {
+  try {
+    const formData = new FormData();
+    formData.append('itemcount', '1');
+    formData.append('publishedfileids[0]', wid);
+
+    const resp = await fetch(`${PROXY_BASE}/steam-details`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const json = await resp.json();
+    const details = json?.response?.publishedfiledetails?.[0];
+
+    if (!details || details.result !== 1) return null;
+
+    let title = details.title || 'Unknown';
+    let desc = (details.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    let modName = null;
+    const patterns = [
+      /mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.\s]+)/i,
+      /mod\s*name:\s*([a-zA-Z0-9_\-.\s]+)/i
+    ];
+    for (const pat of patterns) {
+      const m = desc.match(pat);
+      if (m) {
+        modName = m[1].trim().replace(/\s+/g, '');
+        break;
+      }
+    }
+
+    if (!modName) {
+      modName = title.replace(/\s*\([^)]+\)/g, '').replace(/[\[\]].*?$/, '').trim();
+      modName = modName.replace(/[^a-zA-Z0-9_\-]/g, '');
+    }
+
+    return { wid: wid, name: modName };
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+        
 function copyBoth() {
   const wids  = mods.map(m => m.wid).join(';');
   const names = mods.map(m => '\\' + m.name).join(';');
@@ -433,14 +521,22 @@ function copyBoth() {
     alert('Both lines copied together!\nPaste where needed in your .ini');
   }).catch(() => {
     alert('Copy failed – select manually.');
-  });
-}
+  }
+
+// Allow pressing Enter in the input field to trigger Add Mod
+document.getElementById('input').addEventListener('keydown', function(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();           // prevent form submission / page refresh
+    addMod();                         // call the same function as the button
+  }
+});
 </script>
 
 </body>
 
 
 </html>
+
 
 
 
