@@ -329,3 +329,16 @@
             const b = document.createElement('button');
             b.className = 'search-item-btn';
             b.innerHTML = `<b>${item.title}</b><small>ID: ${item.wid}</small>`;
+            b.onclick = async () => {
+                const details = await getDetails(item.wid);
+                if (details) addModToList(details);
+                list.remove();
+            };
+            list.appendChild(b);
+        });
+        container.appendChild(list);
+    }
+})();
+</script>
+</body>
+</html>
