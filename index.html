@@ -133,6 +133,43 @@
             width: 48%;
         }
 
+        /* Move this outside of the @media block */
+#input-container {
+    position: relative;
+    width: 100%;
+}
+
+.search-results-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 0 0 4px 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.search-item-btn {
+    width: 100%;
+    text-align: left;
+    padding: 10px 15px;
+    background: transparent;
+    color: #ddd;
+    border: none;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+    display: block;
+}
+
+.search-item-btn:hover {
+    background: #3d3d3d;
+    color: #fff;
+}
+
         @media (max-width: 600px) {
             body {
                 padding: 0.75rem;
@@ -152,6 +189,27 @@
                 width: 100%;
                 margin-bottom: 0.5rem;
             }
+
+            <div id="input-container">
+    <input type="text" id="input" 
+        placeholder="e.g. 2778991696   OR   https://steamcommunity.com/.../?id=2778991696   OR   Hydrocraft" />
+    <button onclick="addMod()">Add Mod</button>
+</div>
+
+
+.search-item-btn:last-child {
+  border-bottom: none;
+}
+
+.search-item-btn b {
+  display: block;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.search-item-btn small {
+  color: #888;
+}
         }
     </style>
 </head>
@@ -349,15 +407,22 @@ function updateOutput() {
 
 function showModSelection(candidates, searchInput) {
     const status = document.getElementById('status');
-    status.innerHTML = `<strong>Results for "${searchInput}":</strong><br>`;
+    const inputEl = document.getElementById('input');
     
+    // Clear previous status text
+    status.textContent = 'Results found:';
+    
+    // Remove any existing list first
+    const existingList = document.querySelector('.search-results-list');
+    if (existingList) existingList.remove();
+
     const list = document.createElement('div');
-    list.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-top:10px;';
+    list.className = 'search-results-list';
 
     candidates.forEach(cand => {
         const btn = document.createElement('button');
-        btn.innerHTML = `<b>${cand.title}</b> (ID: ${cand.wid})`;
-        btn.style.cssText = 'text-align:left; padding:10px; cursor:pointer; background:#444; color:white; border:none; border-radius:4px;';
+        btn.className = 'search-item-btn';
+        btn.innerHTML = `<b>${cand.title}</b><small>Workshop ID: ${cand.wid}</small>`;
         
         btn.onclick = async () => {
             status.textContent = `Fetching Mod ID for ${cand.title}...`;
@@ -368,6 +433,7 @@ function showModSelection(candidates, searchInput) {
                     renderList();
                     updateOutput();
                     status.textContent = `Added: ${info.name}`;
+                    inputEl.value = ''; // Clear search on success
                 } else {
                     status.textContent = 'Already added.';
                 }
@@ -376,7 +442,18 @@ function showModSelection(candidates, searchInput) {
         };
         list.appendChild(btn);
     });
-    status.appendChild(list);
+
+    // Append the list to the parent of the input so it positions correctly
+    inputEl.parentNode.appendChild(list);
+
+    // Close dropdown if user clicks outside
+    const closeDropdown = (e) => {
+        if (!list.contains(e.target) && e.target !== inputEl) {
+            list.remove();
+            document.removeEventListener('click', closeDropdown);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', closeDropdown), 10);
 }
 
 async function getDetailsOnly(wid) {
@@ -437,6 +514,7 @@ function copyBoth() {
 
 
 </html>
+
 
 
 
