@@ -166,43 +166,43 @@
                 const r = await fetch(`${PROXY}/steam-search?${p}`);
                 const t = await r.text();
                 const results = [];
+                const seen = new Set();
 
-// Broader search for IDs (relative or absolute URLs)
+// Find all potential IDs (relative URLs)
 const idRegex = /\/sharedfiles\/filedetails\/\?id=(\d+)/g;
 let idMatch;
-const seen = new Set();
-
 while ((idMatch = idRegex.exec(t)) !== null) {
   const id = idMatch[1];
   if (seen.has(id) || id === '2872282653') continue;
   seen.add(id);
 
-  // Look around the ID position for a likely title (look back ~800 chars)
+  // Grab a wider snippet around the ID to find title
   const pos = idMatch.index;
-  const start = Math.max(0, pos - 800);
-  const snippet = t.substring(start, pos + 200);
+  const start = Math.max(0, pos - 1000);
+  const end = Math.min(t.length, pos + 500);
+  const snippet = t.substring(start, end);
 
-  // Try multiple common title patterns
-  let title = 'Unknown Title';
+  // Multiple fallback patterns for title (Steam often nests them)
+  let title = 'Unknown';
 
-  // Pattern 1: workshopItemTitle class (most common)
-  const titleM1 = snippet.match(/class=["']?workshopItemTitle[^>]*>(.*?)<\/div>/i);
-  if (titleM1) title = titleM1[1];
+  // Pattern 1: Common workshopItemTitle class
+  const m1 = snippet.match(/workshopItemTitle[^>]*>([\s\S]*?)<\/div>/i);
+  if (m1) title = m1[1];
 
-  // Pattern 2: title in span or div inside link
-  if (title === 'Unknown Title') {
-    const titleM2 = snippet.match(/>([^<]*(?:<[^>]+>[^<]*)*)(?=<\/a>)/);
-    if (titleM2) title = titleM2[1];
+  // Pattern 2: Any text inside <a>...</a> after cleaning
+  if (title === 'Unknown') {
+    const m2 = snippet.match(/<a[^>]*href[^>]*>([\s\S]*?)<\/a>/i);
+    if (m2) title = m2[1];
   }
 
-  // Clean up
+  // Clean title (remove tags, trim)
   title = title
-    .replace(/<[^>]+>/g, '')         // strip any remaining tags
-    .replace(/&[^;]+;/g, ' ')        // decode entities
-    .replace(/\s+/g, ' ')            // normalize spaces
+    .replace(/<[^>]+>/g, '')      // strip HTML
+    .replace(/&[^;]+;/g, ' ')     // decode entities
+    .replace(/\s+/g, ' ')         // normalize spaces
     .trim();
 
-  // Final filters
+  // Skip junk or empty
   if (title.length < 5 ||
       title.toLowerCase().includes('policy') ||
       title.toLowerCase().includes('guideline') ||
@@ -214,13 +214,13 @@ while ((idMatch = idRegex.exec(t)) !== null) {
   results.push({ wid: id, title });
 }
 
-// Limit to top 5
-if (results.length === 0) {
-  status.textContent = "No usable mod titles found in search results. Try direct ID/URL.";
+// Dedupe and limit
+const uniqueResults = [...new Map(results.map(r => [r.wid, r])).values()];
+if (uniqueResults.length === 0) {
+  status.textContent = "No valid mods parsed from Steam search (HTML structure may have changed). Try direct ID/URL or more specific name.";
 } else {
-  showResults(results.slice(0, 5));
+  showResults(uniqueResults.slice(0, 5));
 }
-
     async function getDetails(id) {
         try {
             const fd = new FormData();
@@ -457,6 +457,7 @@ if (results.length === 0) {
 </script>
 </body>
 </html>
+
 
 
 
