@@ -166,34 +166,60 @@
                 const r = await fetch(`${PROXY}/steam-search?${p}`);
                 const t = await r.text();
                 const results = [];
-                
-                // IMPROVED SEARCH PARSING
-                // This regex finds the container for each search result
-                const containerReg = /<div class="workshopItem">([\s\S]*?)<\/div><\/div>/gi;
-                let match;
-                
-                while ((match = containerReg.exec(t)) !== null && results.length < 5) {
-                    const block = match[1];
-                    // Extract ID and Title from the specific block
-                    const idMatch = block.match(/id=(\d+)/);
-                    // This specifically looks for the title text in the search result
-                    const titleMatch = block.match(/workshopItemTitle[^>]*>([\s\S]*?)<\/div>/i);
-                    
-                    if (idMatch && titleMatch) {
-                        results.push({ 
-                            wid: idMatch[1], 
-                            title: titleMatch[1].replace(/<[^>]+>/g, '').trim() 
-                        });
-                    }
-                }
 
-                if (results.length === 0) { status.textContent = "No results found."; return null; }
-                showResults(results);
-                return null;
-            } catch (e) { status.textContent = "Search failed."; return null; }
-        }
-        return await getDetails(wid);
-    }
+// Broader search for IDs (relative or absolute URLs)
+const idRegex = /\/sharedfiles\/filedetails\/\?id=(\d+)/g;
+let idMatch;
+const seen = new Set();
+
+while ((idMatch = idRegex.exec(t)) !== null) {
+  const id = idMatch[1];
+  if (seen.has(id) || id === '2872282653') continue;
+  seen.add(id);
+
+  // Look around the ID position for a likely title (look back ~800 chars)
+  const pos = idMatch.index;
+  const start = Math.max(0, pos - 800);
+  const snippet = t.substring(start, pos + 200);
+
+  // Try multiple common title patterns
+  let title = 'Unknown Title';
+
+  // Pattern 1: workshopItemTitle class (most common)
+  const titleM1 = snippet.match(/class=["']?workshopItemTitle[^>]*>(.*?)<\/div>/i);
+  if (titleM1) title = titleM1[1];
+
+  // Pattern 2: title in span or div inside link
+  if (title === 'Unknown Title') {
+    const titleM2 = snippet.match(/>([^<]*(?:<[^>]+>[^<]*)*)(?=<\/a>)/);
+    if (titleM2) title = titleM2[1];
+  }
+
+  // Clean up
+  title = title
+    .replace(/<[^>]+>/g, '')         // strip any remaining tags
+    .replace(/&[^;]+;/g, ' ')        // decode entities
+    .replace(/\s+/g, ' ')            // normalize spaces
+    .trim();
+
+  // Final filters
+  if (title.length < 5 ||
+      title.toLowerCase().includes('policy') ||
+      title.toLowerCase().includes('guideline') ||
+      title.includes('Steam Workshop') ||
+      title.includes('Subscribe')) {
+    continue;
+  }
+
+  results.push({ wid: id, title });
+}
+
+// Limit to top 5
+if (results.length === 0) {
+  status.textContent = "No usable mod titles found in search results. Try direct ID/URL.";
+} else {
+  showResults(results.slice(0, 5));
+}
 
     async function getDetails(id) {
         try {
@@ -431,6 +457,7 @@
 </script>
 </body>
 </html>
+
 
 
 
