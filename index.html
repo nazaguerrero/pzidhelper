@@ -43,6 +43,43 @@
 
         @keyframes flash-success { 0% { background-color: #004400; } 100% { background-color: #000000; } }
         .copy-flash { animation: flash-success 0.6s ease-out !important; }
+
+        .search-results-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0; /* Ensures it spans the full width of the container */
+    background: #222;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    max-height: 450px;
+    overflow-y: auto;
+    z-index: 9999;
+}
+
+.search-item-btn {
+    width: 100%;
+    text-align: left;
+    padding: 15px;
+    background: #222;
+    color: #eee;
+    border: none;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+    display: flex; /* Flexbox keeps title and ID separated */
+    flex-direction: column;
+    gap: 4px;
+    transition: 0.2s;
+}
+
+.search-item-btn:hover {
+    background: #333;
+    border-left: 4px solid var(--accent);
+}
+
+.search-item-btn b { color: var(--accent); font-size: 1.1rem; }
+.search-item-btn small { color: #888; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -276,28 +313,43 @@
         });
     }
 
-    function showResults(data) {
-        const container = document.getElementById('input-container');
-        const old = document.querySelector('.search-results-list');
-        if (old) old.remove();
-        const list = document.createElement('div');
-        list.className = 'search-results-list';
-        list.innerHTML = `<div style="padding:10px; background:#333; border-bottom:1px solid #444;">Results <button onclick="this.parentElement.remove()" style="float:right; cursor:pointer; background:none; border:none; color:red;">✕</button></div>`;
-        data.forEach(item => {
-            const b = document.createElement('button');
-            b.className = 'search-item-btn';
-            b.innerHTML = `<b>${item.title}</b><br><small>ID: ${item.wid}</small>`;
-            b.onclick = async () => {
-                const details = await getDetails(item.wid);
-                if (details) addModToList(details);
-                list.remove();
-            };
-            list.appendChild(b);
-        });
-        container.appendChild(list);
-    }
+function showResults(data) {
+    const container = document.getElementById('input-container');
+    const old = document.querySelector('.search-results-list');
+    if (old) old.remove();
+
+    const list = document.createElement('div');
+    list.className = 'search-results-list';
+    
+    // Header with a clean "Close" button
+    list.innerHTML = `
+        <div style="padding:10px; background:#111; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #444;">
+            <span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span>
+            <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:bold;">✕</button>
+        </div>`;
+
+    data.forEach(item => {
+        const b = document.createElement('button');
+        b.className = 'search-item-btn';
+        
+        // We clean the title one last time to remove any stray "ID:" or "Learn More" 
+        const cleanTitle = item.title.replace(/ID:|Learn More/gi, '').trim();
+        
+        b.innerHTML = `<b>${cleanTitle}</b><small>Workshop ID: ${item.wid}</small>`;
+        
+        b.onclick = async () => {
+            const details = await getDetails(item.wid);
+            if (details) addModToList(details);
+            list.remove();
+            document.getElementById('mainInput').value = '';
+        };
+        list.appendChild(b);
+    });
+    container.appendChild(list);
+}
 })();
 </script>
 </body>
 
 </html>
+
