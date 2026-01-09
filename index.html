@@ -60,6 +60,14 @@
     border-radius: 2px;
     padding: 0 2px;
 }
+    @keyframes flash-success {
+    0% { background-color: #004400; }
+    100% { background-color: #000; }
+}
+
+.copy-flash {
+    animation: flash-success 0.8s ease-out;
+}
     </style>
 </head>
 <body>
@@ -172,6 +180,9 @@
             render();
         } else {
             document.getElementById('status').textContent = "Already in list.";
+            const mainInput = document.getElementById('mainInput');
+mainInput.value = '';
+mainInput.focus();
         }
     }
 
@@ -286,10 +297,17 @@ function render() {
         if (w && n) addModToList({wid:w, name:n});
     }
 
-    function copyText(id) {
-        const t = document.getElementById(id).textContent;
-        if (t) navigator.clipboard.writeText(t).then(() => alert("Copied!"));
+function copyText(id) {
+    const el = document.getElementById(id);
+    const t = el.innerText; // Use innerText to avoid copying HTML tags
+    if (t) {
+        navigator.clipboard.writeText(t).then(() => {
+            el.classList.remove('copy-flash'); // Reset animation
+            void el.offsetWidth;               // Trigger reflow
+            el.classList.add('copy-flash');    // Start animation
+        });
     }
+}
 
     function showResults(data) {
         const container = document.getElementById('input-container');
@@ -320,4 +338,5 @@ function render() {
 </script>
 </body>
 </html>
+
 
