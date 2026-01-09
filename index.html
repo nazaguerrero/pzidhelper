@@ -202,6 +202,36 @@
     <button onclick="addMod()">Add Mod</button>
 </div>
 
+            /* Styling for the item currently being dragged */
+.mod-item.dragging {
+    opacity: 0.5;
+    border: 2px dashed var(--accent);
+    background: #333;
+}
+
+/* Highlighting the IDs during interaction */
+.mod-item:active strong, 
+.mod-item.dragging strong {
+    color: var(--accent); /* Highlights Mod Name */
+    text-shadow: 0 0 8px var(--accent);
+}
+
+.mod-item:active small,
+.mod-item.dragging small {
+    color: #fff; /* Highlights ID */
+}
+
+/* Add a grab cursor to show it can be moved */
+.mod-item {
+    cursor: grab;
+    user-select: none;
+    transition: transform 0.1s ease;
+}
+
+.mod-item:active {
+    cursor: grabbing;
+}
+
         }
     </style>
 </head>
@@ -365,15 +395,116 @@ function removeMod(index) {
 
 function renderList() {
     const container = document.getElementById('modlist');
-    container.innerHTML = mods.length ? '<h3>Added Mods:</h3>' : '';
+    
+    if (mods.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3>Added Mods (${mods.length}):</h3>
+            <button onclick="clearAll()" style="background: var(--danger); padding: 0.5rem 1rem; font-size: 0.8rem;">Clear All</button>
+        </div>
+    `;
+
     mods.forEach((m, i) => {
         const div = document.createElement('div');
         div.className = 'mod-item';
-        div.style.marginBottom = '10px';
-        div.innerHTML = `<span><strong>${m.name}</strong> → Workshop: ${m.wid}</span>
-                         <button onclick="removeMod(${i})">Remove</button>`;
+        div.draggable = true; // Enable native dragging
+        div.dataset.index = i;
+
+        div.innerHTML = `
+            <span>
+                <span style="color: #666; margin-right: 10px;">☰</span>
+                <strong>${m.name}</strong> 
+                <small style="margin-left:10px; color:#888;">(ID: ${m.wid})</small>
+            </span>
+            <button onclick="removeMod(${i})" style="cursor: pointer;">Remove</button>
+        `;
+
+        // Drag Events
+        div.addEventListener('dragstart', () => div.classList.add('dragging'));
+        div.addEventListener('dragend', () => {
+            div.classList.remove('dragging');
+            reorderMods();
+        });
+
         container.appendChild(div);
     });
+
+    // Handle the "dropping" area logic
+    container.addEventListener('dragover', e => {
+        e.preventDefault();
+        const afterElement = getDragAfterElement(container, e.clientY);
+        const dragging = document.querySelector('.dragging');
+        if (afterElement == null) {
+            container.appendChild(dragging);
+        } else {
+            container.insertBefore(dragging, afterElement);
+        }
+    });
+}
+
+// Logic to determine where the item should land
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.mod-item:not(.dragging)')];
+
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// Update the actual 'mods' array based on the new visual order
+function reorderMods() {
+    const currentItems = [...document.querySelectorAll('.mod-item')];
+    const newOrder = [];
+    
+    currentItems.forEach(item => {
+        const index = item.dataset.index;
+        newOrder.push(mods[index]);
+    });
+
+    // Update the global mods array and refresh output
+    mods.length = 0;
+    mods.push(...newOrder);
+    renderList(); // Redraw to update indices
+    updateOutput();
+}
+
+    // Header with Clear All button
+    container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3>Added Mods (${mods.length}):</h3>
+            <button onclick="clearAll()" style="background: var(--danger); padding: 0.5rem 1rem; font-size: 0.8rem;">Clear All</button>
+        </div>
+    `;
+
+    mods.forEach((m, i) => {
+        const div = document.createElement('div');
+        div.className = 'mod-item';
+        div.innerHTML = `
+            <span><strong>${m.name}</strong> <small>(ID: ${m.wid})</small></span>
+            <button onclick="removeMod(${i})">Remove</button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// The clearAll function logic
+function clearAll() {
+    if (confirm("Are you sure you want to remove all mods from the list?")) {
+        mods.length = 0; // Clears the array
+        renderList();
+        updateOutput();
+        document.getElementById('status').textContent = 'List cleared.';
+    }
 }
 
 function updateOutput() {
@@ -511,6 +642,7 @@ async function getDetailsOnly(wid) {
 
 
 </html>
+
 
 
 
