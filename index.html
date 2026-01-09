@@ -80,6 +80,30 @@
 
 .search-item-btn b { color: var(--accent); font-size: 1.1rem; }
 .search-item-btn small { color: #888; font-family: monospace; }
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 5px;
+    border-bottom: 1px solid #444;
+    margin-bottom: 10px;
+}
+
+.count-badge {
+    background: var(--accent);
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 0.85rem;
+    margin-left: 8px;
+}
+
+.clear-btn {
+    background: var(--danger);
+    font-size: 0.8rem;
+    padding: 5px 12px;
+}
     </style>
 </head>
 <body>
@@ -224,41 +248,90 @@
         }
     }
 
-    function render() {
-        const list = document.getElementById('modlist');
-        list.innerHTML = '';
-        if (mods.length > 0) {
-            mods.forEach((m, i) => {
-                const d = document.createElement('div');
-                d.className = 'mod-item';
-                d.draggable = true;
-                d.dataset.wid = m.wid;
-                d.innerHTML = `
-                    <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
-                    <div style="display:flex; gap:5px;">
-                        <button class="edit-btn">✎</button>
-                        <button class="rmv" style="background:var(--danger)">X</button>
-                    </div>
-                `;
-                d.querySelector('.edit-btn').onclick = (e) => {
-                    e.stopPropagation();
-                    const label = d.querySelector('.mod-id-label');
-                    const input = document.createElement('input');
-                    input.className = 'edit-input';
-                    input.value = m.name;
-                    input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
-                    label.replaceWith(input);
-                    input.focus();
+function render() {
+    const list = document.getElementById('modlist');
+    list.innerHTML = '';
+
+    if (mods.length > 0) {
+        // Create the Header with Count and Clear All
+        const header = document.createElement('div');
+        header.className = 'list-header';
+        header.innerHTML = `
+            <div>
+                <h3 style="display:inline; margin:0;">Added Mods</h3>
+                <span class="count-badge">${mods.length}</span>
+            </div>
+            <button class="clear-btn" id="clrBtn">Clear All</button>
+        `;
+        list.appendChild(header);
+
+        // Clear All Logic
+        document.getElementById('clrBtn').onclick = () => {
+            if (confirm("Are you sure you want to clear all " + mods.length + " mods?")) {
+                mods = [];
+                saveToDisk();
+                render();
+            }
+        };
+
+        // Render each mod item
+        mods.forEach((m, i) => {
+            const d = document.createElement('div');
+            d.className = 'mod-item';
+            d.draggable = true;
+            d.dataset.wid = m.wid;
+            d.innerHTML = `
+                <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
+                <div style="display:flex; gap:5px;">
+                    <button class="edit-btn" style="background:var(--btn); padding:4px 10px;">✎</button>
+                    <button class="rmv" style="background:var(--danger); padding:4px 10px;">X</button>
+                </div>
+            `;
+
+            // Edit Button Logic
+            d.querySelector('.edit-btn').onclick = (e) => {
+                e.stopPropagation();
+                const label = d.querySelector('.mod-id-label');
+                const input = document.createElement('input');
+                input.className = 'edit-input';
+                input.value = m.name;
+                input.onblur = () => { 
+                    m.name = input.value.trim(); 
+                    saveToDisk(); 
+                    render(); 
                 };
-                d.querySelector('.rmv').onclick = () => { mods.splice(i, 1); saveToDisk(); render(); };
-                
-                d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; updateOut(); };
-                d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
-                list.appendChild(d);
-            });
-        }
-        updateOut();
+                input.onkeydown = (ev) => { if (ev.key === 'Enter') input.blur(); };
+                label.replaceWith(input);
+                input.focus();
+            };
+
+            // Remove Individual Button
+            d.querySelector('.rmv').onclick = (e) => {
+                e.stopPropagation();
+                mods.splice(i, 1);
+                saveToDisk();
+                render();
+            };
+
+            // Drag and Drop State
+            d.ondragstart = () => {
+                d.classList.add('dragging');
+                draggingWID = m.wid;
+                updateOut();
+            };
+            d.ondragend = () => {
+                d.classList.remove('dragging');
+                draggingWID = null;
+                updateOut();
+            };
+
+            list.appendChild(d);
+        });
+    } else {
+        list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px;">No mods added yet. Search above to start!</div>`;
     }
+    updateOut();
+}
 
     function updateOut() {
         const outW = document.getElementById('outW');
@@ -352,4 +425,5 @@ function showResults(data) {
 </body>
 
 </html>
+
 
