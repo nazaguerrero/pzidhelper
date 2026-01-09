@@ -249,22 +249,46 @@ async function fetchModInfo(input) {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
       const text = await resp.text();
+    console.log('Search response length:', text.length);
+    console.log('First 800 chars:', text.substring(0, 800));
 
-      // Extract potential mod links + titles
-      const results = [];
-      const itemRegex = /<a href="https:\/\/steamcommunity.com\/sharedfiles\/filedetails\/\?id=(\d+)"[^>]*>([^<]+)<\/a>/gi;
-      let match;
-      while ((match = itemRegex.exec(text)) !== null) {
-        const id = match[1];
-        let title = match[2].trim().replace(/&[^;]+;/g, '');
-        // Skip junk/policy
-        if (id === '2872282653' || title.toLowerCase().includes('policy') || title.toLowerCase().includes('guideline')) {
-          continue;
-        }
-        results.push({ wid: id, title });
-      }
+      // Extract potential mod links + titles (more flexible regex)
+const results = [];
+const linkRegex = /href=["'](?:https?:\/\/steamcommunity\.com)?\/sharedfiles\/filedetails\/\?id=(\d+)["'][^>]*>(.*?)<\/a>/gi;
 
-      const candidates = results.slice(0, 5);
+let match;
+while ((match = linkRegex.exec(text)) !== null) {
+  const id = match[1];
+  // Capture title more safely (innerHTML up to </a>, strip tags)
+  let rawTitle = match[2] || '';
+  let title = rawTitle
+    .replace(/<[^>]+>/g, '')           // strip any nested tags
+    .replace(/&[^;]+;/g, ' ')          // decode entities
+    .trim();
+
+  // Skip empty, policy, guides, or obvious junk
+  if (!title || 
+      id === '2872282653' || 
+      title.toLowerCase().includes('policy') || 
+      title.toLowerCase().includes('guideline') || 
+      title.toLowerCase().includes('welcome') || 
+      title.length < 3) {
+    continue;
+  }
+
+  results.push({ wid: id, title });
+}
+
+// Remove duplicates by ID
+const seen = new Set();
+const uniqueResults = results.filter(item => {
+  if (seen.has(item.wid)) return false;
+  seen.add(item.wid);
+  return true;
+});
+
+// Limit to first 5
+const candidates = uniqueResults.slice(0, 5);
 
       if (candidates.length === 0) {
         status.textContent = 'No valid mod results found. Try a more specific name, full URL, or numeric ID.';
@@ -510,6 +534,7 @@ document.getElementById('input').addEventListener('keydown', function(event) {
 
 
 </html>
+
 
 
 
