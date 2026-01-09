@@ -156,15 +156,37 @@
 
         if (!wid) {
             try {
-                const p = new URLSearchParams({ appid: '108600', searchtext: val, section: 'readytouseitems', browsesort: 'trend', p: '1' });
+                const p = new URLSearchParams({ 
+                    appid: '108600', 
+                    searchtext: val, 
+                    section: 'readytouseitems', 
+                    browsesort: 'trend', 
+                    p: '1' 
+                });
                 const r = await fetch(`${PROXY}/steam-search?${p}`);
                 const t = await r.text();
                 const results = [];
-                const reg = /sharedfiles\/filedetails\/\?id=(\d+)[^>]*>([\s\S]*?)<\/div>/gi;
-                let m;
-                while ((m = reg.exec(t)) !== null && results.length < 5) {
-                    results.push({ wid: m[1], title: m[2].replace(/<[^>]+>/g, '').trim() });
+                
+                // IMPROVED SEARCH PARSING
+                // This regex finds the container for each search result
+                const containerReg = /<div class="workshopItem">([\s\S]*?)<\/div><\/div>/gi;
+                let match;
+                
+                while ((match = containerReg.exec(t)) !== null && results.length < 5) {
+                    const block = match[1];
+                    // Extract ID and Title from the specific block
+                    const idMatch = block.match(/id=(\d+)/);
+                    // This specifically looks for the title text in the search result
+                    const titleMatch = block.match(/workshopItemTitle[^>]*>([\s\S]*?)<\/div>/i);
+                    
+                    if (idMatch && titleMatch) {
+                        results.push({ 
+                            wid: idMatch[1], 
+                            title: titleMatch[1].replace(/<[^>]+>/g, '').trim() 
+                        });
+                    }
                 }
+
                 if (results.length === 0) { status.textContent = "No results found."; return null; }
                 showResults(results);
                 return null;
@@ -399,4 +421,5 @@
 </script>
 </body>
 </html>
+
 
