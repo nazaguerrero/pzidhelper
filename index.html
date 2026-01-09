@@ -13,15 +13,23 @@
         * { box-sizing: border-box; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 1rem; line-height: 1.5; }
         .container { max-width: 800px; margin: 0 auto; }
-        h1 { color: var(--accent); text-align: center; margin-bottom: 1.5rem; }
+        h1 { color: var(--accent); text-align: center; margin-bottom: 0.5rem; }
         
+        /* Version Toggle Styles */
+        .version-toggle {
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            margin-bottom: 20px; background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333;
+        }
+        .v-btn { background: #333; color: #888; border: 1px solid #444; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .v-btn.active { background: var(--accent); color: #000; border-color: #fff; }
+
         #input-container { position: relative; display: flex; gap: 10px; margin-bottom: 10px; }
         input[type="text"] { flex: 1; padding: 12px; background: var(--card); color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 1rem; }
         
         button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--btn); color: #fff; font-size: 1rem; transition: background 0.2s; }
         button:hover { background: var(--btn-hover); }
         
-        #status { color: var(--warning); margin-bottom: 15px; min-height: 22px; font-size: 0.9rem; font-weight: bold; }
+        #status { color: var(--warning); margin-bottom: 15px; min-height: 22px; font-size: 0.9rem; font-weight: bold; text-align: center;}
         
         .mod-item { 
             background: var(--card); padding: 12px; margin: 8px 0; border-radius: 6px; 
@@ -41,15 +49,11 @@
         .search-item-btn { width: 100%; text-align: left; padding: 12px; background: transparent; color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; display: block; }
         .search-item-btn:hover { background: #333; }
 
-        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; }
+        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; min-height: 50px;}
         .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; }
 
         @keyframes flash-success { 0% { background-color: #004400; } 100% { background-color: #000000; } }
         .copy-flash { animation: flash-success 0.6s ease-out !important; }
-
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
-        .duplicate-shake { animation: shake 0.4s ease-in-out; border-color: var(--danger) !important; }
-
         .manual-add { margin-top: 30px; padding-top: 20px; border-top: 1px solid #444; }
     </style>
 </head>
@@ -57,6 +61,12 @@
 
 <div class="container">
     <h1>PZ B42 ID Helper Pro</h1>
+
+    <div class="version-toggle">
+        <span>Format for:</span>
+        <button id="v41" class="v-btn">B41 (Legacy)</button>
+        <button id="v42" class="v-btn active">B42 (Backslash \)</button>
+    </div>
     
     <div id="input-container">
         <input type="text" id="mainInput" placeholder="Workshop ID, URL, or Mod Name..." />
@@ -91,9 +101,23 @@
 (function() {
     const PROXY = 'https://pz-mod-proxy.nazaguerrero.workers.dev';
     let mods = [];
+    let isB42 = true; 
 
     document.addEventListener('DOMContentLoaded', () => {
         loadFromDisk(); 
+
+        const btn41 = document.getElementById('v41');
+        const btn42 = document.getElementById('v42');
+
+        btn41.onclick = () => { isB42 = false; updateToggleUI(); };
+        btn42.onclick = () => { isB42 = true; updateToggleUI(); };
+
+        function updateToggleUI() {
+            btn41.classList.toggle('active', !isB42);
+            btn42.classList.toggle('active', isB42);
+            render(); // Re-render to update leading slashes and list
+        }
+
         const addBtn = document.getElementById('addBtn');
         const manBtn = document.getElementById('manBtn');
         const mainInput = document.getElementById('mainInput');
@@ -109,12 +133,11 @@
     });
 
     function saveToDisk() {
-        // Changed key name to force a refresh of the UI components
-        localStorage.setItem('pz_helper_pro_v2', JSON.stringify(mods));
+        localStorage.setItem('pz_helper_pro_v3', JSON.stringify(mods));
     }
 
     function loadFromDisk() {
-        const saved = localStorage.getItem('pz_helper_pro_v2');
+        const saved = localStorage.getItem('pz_helper_pro_v3');
         if (saved) { try { mods = JSON.parse(saved); } catch (e) { mods = []; } }
     }
 
@@ -161,20 +184,15 @@
             if (!d || d.result !== 1) return null;
 
             const description = d.description || "";
-            
-            // IMPROVED MULTI-ID DETECTION
-            // This looks for "Mod ID:" case-insensitive, followed by anything, multiple times
             const idPattern = /mod\s*id/gi;
             const matches = description.match(idPattern) || [];
-            
             const firstID = description.match(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
             
             if (matches.length > 1) {
-                document.getElementById('status').textContent = "⚠️ " + matches.length + " Mod IDs found in description! Use ✎ to add others.";
+                document.getElementById('status').textContent = "⚠️ " + matches.length + " Mod IDs detected! Use ✎ to add others.";
             } else {
                 document.getElementById('status').textContent = "Added: " + firstID;
             }
-
             return { wid: id, name: firstID };
         } catch (e) { return null; }
     }
@@ -208,7 +226,7 @@
                 d.className = 'mod-item';
                 d.draggable = true;
                 d.dataset.wid = m.wid;
-                d.dataset.name = m.name; // Crucial for highlighting
+                d.dataset.name = m.name;
                 
                 d.innerHTML = `
                     <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
@@ -237,7 +255,6 @@
                     render();
                 };
                 
-                // DRAG START - TRIGGER HIGHLIGHT
                 d.ondragstart = () => {
                     d.classList.add('dragging');
                     highlightOutput(m.wid, m.name);
@@ -245,7 +262,7 @@
                 
                 d.ondragend = () => {
                     d.classList.remove('dragging');
-                    render(); // Re-render to clear highlights
+                    render();
                 };
 
                 list.appendChild(d);
@@ -254,22 +271,22 @@
         updateOut();
     }
 
-function highlightOutput(wid, name) {
+    function highlightOutput(wid, name) {
+        updateOut(); 
         const outW = document.getElementById('outW');
         const outM = document.getElementById('outM');
-        
-        // Refresh text first so we don't stack highlights
-        updateOut(); 
 
-        // Highlight Workshop ID
         outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
         
-        // Highlight Mod IDs (handles multiples with semicolons)
         const parts = name.split(';');
         let mContent = outM.innerHTML;
         parts.forEach(p => {
-            if(p.trim()) {
-                const reg = new RegExp(`(${p.trim()})`, 'g');
+            const clean = p.trim();
+            if(clean) {
+                const searchStr = isB42 ? `\\${clean}` : clean;
+                // Double escape for regex since backslash is a special char
+                const escaped = searchStr.replace(/\\/g, '\\\\');
+                const reg = new RegExp(`(${escaped})`, 'g');
                 mContent = mContent.replace(reg, `<span class="highlight-text">$1</span>`);
             }
         });
@@ -281,29 +298,24 @@ function highlightOutput(wid, name) {
         const newMods = [];
         currentItems.forEach(item => {
             const wid = item.dataset.wid;
-            // Get current name from the label/data in case it was just edited
-            const name = item.querySelector('.mod-id-label')?.innerText || item.dataset.name;
-            newMods.push({ wid: wid, name: name });
+            const existingMod = mods.find(m => m.wid === wid);
+            if(existingMod) newMods.push(existingMod);
         });
         mods = newMods;
         saveToDisk();
         updateOut();
     }
 
-    // UPDATED DRAGOVER - REAL TIME HIGHLIGHTING
     document.getElementById('modlist').addEventListener('dragover', e => {
         e.preventDefault();
         const dragging = document.querySelector('.dragging');
         if (!dragging) return;
-        
         const list = document.getElementById('modlist');
         const afterElement = getDragAfterElement(list, e.clientY);
         if (afterElement == null) list.appendChild(dragging);
         else list.insertBefore(dragging, afterElement);
         
-        // Update the string order in the boxes while dragging
         saveNewOrder();
-        // Keep the highlight active on the item being moved
         highlightOutput(dragging.dataset.wid, dragging.querySelector('.mod-id-label').innerText);
     });
 
@@ -318,10 +330,18 @@ function highlightOutput(wid, name) {
     }
 
     function updateOut() {
+        const outW = document.getElementById('outW');
+        const outM = document.getElementById('outM');
+        if (!mods.length) { outW.innerHTML = ''; outM.innerHTML = ''; return; }
+
         const wids = mods.map(m => m.wid).join(';');
-        const names = mods.map(m => m.name).join(';');
-        document.getElementById('outW').innerHTML = mods.length ? `WorkshopItems=${wids}` : '';
-        document.getElementById('outM').innerHTML = mods.length ? `Mods=${names}` : '';
+        const names = mods.map(m => {
+            const subMods = m.name.split(';');
+            return subMods.map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
+        }).join(';');
+
+        outW.innerHTML = `WorkshopItems=${wids}`;
+        outM.innerHTML = `Mods=${names}`;
     }
 
     function handleManual() {
@@ -369,5 +389,3 @@ function highlightOutput(wid, name) {
 </script>
 </body>
 </html>
-
-
