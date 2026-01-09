@@ -134,7 +134,10 @@
         const val = input.value.trim();
         if (!val) return;
         const info = await fetchInfo(val);
-        if (info) addModToList(info);
+        if (info) {
+            addModToList(info);
+            input.value = ''; // Clear input on success
+        }
     }
 
     async function fetchInfo(val) {
@@ -170,90 +173,87 @@
             const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
             const j = await r.json();
             const d = j?.response?.publishedfiledetails?.[0];
-            if (!d || d.result !== 1) return null;
+            if (!d || d.result !== 1) {
+                document.getElementById('status').textContent = "Mod not found on Steam.";
+                return null;
+            }
             const name = d.description.match(/mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            document.getElementById('status').textContent = "Added: " + name;
             return { wid: id, name: name };
-        } catch (e) { return null; }
+        } catch (e) { 
+            document.getElementById('status').textContent = "Error fetching details.";
+            return null; 
+        }
     }
 
     function addModToList(obj) {
-        if (!mods.some(m => m.wid === obj.wid)) {
+        const exists = mods.some(m => String(m.wid) === String(obj.wid));
+        if (!exists) {
             mods.push(obj);
-            const mainInput = document.getElementById('mainInput');
-            mainInput.value = '';
-            mainInput.focus();
+            document.getElementById('status').textContent = "Added: " + obj.name;
             render();
+            saveToDisk();
         } else {
             document.getElementById('status').textContent = "Already in list.";
-            const existing = Array.from(document.querySelectorAll('.mod-item')).find(el => el.dataset.wid === obj.wid);
-            if (existing) {
-                existing.classList.add('duplicate-shake');
-                setTimeout(() => existing.classList.remove('duplicate-shake'), 400);
-            }
-            document.getElementById('mainInput').value = '';
+            const items = document.querySelectorAll('.mod-item');
+            items.forEach(el => {
+                if (el.dataset.wid === obj.wid) {
+                    el.classList.add('duplicate-shake');
+                    setTimeout(() => el.classList.remove('duplicate-shake'), 400);
+                }
+            });
         }
     }
 
     function render() {
         const list = document.getElementById('modlist');
-        list.innerHTML = mods.length ? `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3>Added Mods (${mods.length}):</h3>
-            <button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>
-        </div>` : '';
-        
-        if(document.getElementById('clrBtn')) {
-            document.getElementById('clrBtn').onclick = () => { 
-                if(confirm("This will permanently delete your saved list. Are you sure?")) { 
-                    mods=[]; 
+        list.innerHTML = ''; // Full clear
+
+        if (mods.length > 0) {
+            // Header
+            const header = document.createElement('div');
+            header.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;";
+            header.innerHTML = `<h3>Added Mods (${mods.length}):</h3><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
+            list.appendChild(header);
+
+            document.getElementById('clrBtn').onclick = () => {
+                if(confirm("Wipe the entire list?")) {
+                    mods = [];
                     localStorage.removeItem('pz_helper_mods');
-                    render(); 
-                } 
+                    render();
+                }
             };
+
+            // Items
+            mods.forEach((m, i) => {
+                const d = document.createElement('div');
+                d.className = 'mod-item';
+                d.draggable = true;
+                d.dataset.wid = m.wid;
+                d.dataset.name = m.name;
+                d.innerHTML = `<span>☰ <b>${m.name}</b> (${m.wid})</span><button class="rmv" style="background:var(--danger); padding:4px 8px;">X</button>`;
+                
+                d.querySelector('.rmv').onclick = (e) => {
+                    e.stopPropagation();
+                    mods.splice(i, 1);
+                    render();
+                    saveToDisk();
+                };
+
+                d.addEventListener('dragstart', () => {
+                    d.classList.add('dragging');
+                    highlightOutput(m.wid, m.name);
+                });
+
+                d.addEventListener('dragend', () => {
+                    d.classList.remove('dragging');
+                    saveNewOrder();
+                });
+
+                list.appendChild(d);
+            });
         }
 
-        // Loop through and create items
-        mods.forEach((m, i) => {
-            const d = document.createElement('div');
-            d.className = 'mod-item';
-            d.draggable = true;
-            d.dataset.wid = m.wid;
-            d.dataset.name = m.name;
-            d.innerHTML = `<span>☰ <b>${m.name}</b> (${m.wid})</span><button class="rmv" style="background:var(--danger); padding:4px 8px;">X</button>`;
-            
-            d.querySelector('.rmv').onclick = (e) => { 
-                e.stopPropagation(); 
-                mods.splice(i, 1); 
-                render(); 
-                saveToDisk();
-            };
-            
-            d.addEventListener('dragstart', () => {
-                d.classList.add('dragging');
-                highlightOutput(m.wid, m.name);
-            });
-
-            d.addEventListener('dragend', () => {
-                d.classList.remove('dragging');
-                saveNewOrder();
-            });
-            
-            list.appendChild(d);
-        });
-
-        // Dragover listener
-        list.addEventListener('dragover', e => {
-            e.preventDefault();
-            const dragging = document.querySelector('.dragging');
-            if (!dragging) return;
-            const afterElement = getDragAfterElement(list, e.clientY);
-            if (afterElement == null) list.appendChild(dragging);
-            else list.insertBefore(dragging, afterElement);
-            saveNewOrder(true); 
-        });
-
         updateOut();
-        saveToDisk();
     }
 
     function highlightOutput(wid, name) {
@@ -265,14 +265,18 @@
 
     function saveNewOrder(isDragging = false) {
         const currentItems = [...document.querySelectorAll('.mod-item')];
-        mods = currentItems.map(item => ({ wid: item.dataset.wid, name: item.dataset.name }));
+        mods = currentItems.map(item => ({
+            wid: item.dataset.wid,
+            name: item.dataset.name
+        }));
         
         if (isDragging) {
             const dragItem = document.querySelector('.dragging');
             updateOut(); 
             if(dragItem) highlightOutput(dragItem.dataset.wid, dragItem.dataset.name);
         } else {
-            render(); 
+            render();
+            saveToDisk();
         }
     }
 
@@ -286,6 +290,18 @@
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
+    // Dragover container logic
+    document.getElementById('modlist').addEventListener('dragover', e => {
+        e.preventDefault();
+        const list = document.getElementById('modlist');
+        const dragging = document.querySelector('.dragging');
+        if (!dragging) return;
+        const afterElement = getDragAfterElement(list, e.clientY);
+        if (afterElement == null) list.appendChild(dragging);
+        else list.insertBefore(dragging, afterElement);
+        saveNewOrder(true);
+    });
+
     function updateOut() {
         const wids = mods.map(m => m.wid).join(';');
         const names = mods.map(m => '\\' + m.name).join(';');
@@ -294,20 +310,21 @@
     }
 
     function handleManual() {
-        const wEl = document.getElementById('manWID');
-        const nEl = document.getElementById('manMID');
-        if (wEl.value.trim() && nEl.value.trim()) {
-            addModToList({wid: wEl.value.trim(), name: nEl.value.trim()});
-            wEl.value = ''; nEl.value = '';
+        const w = document.getElementById('manWID').value.trim();
+        const n = document.getElementById('manMID').value.trim();
+        if (w && n) {
+            addModToList({wid: w, name: n});
+            document.getElementById('manWID').value = '';
+            document.getElementById('manMID').value = '';
         }
     }
 
     function copyText(id) {
         const el = document.getElementById(id);
-        if (el.innerText) {
+        if (el && el.innerText) {
             navigator.clipboard.writeText(el.innerText).then(() => {
                 el.classList.remove('copy-flash');
-                void el.offsetWidth; 
+                void el.offsetWidth;
                 el.classList.add('copy-flash');
             });
         }
@@ -342,3 +359,4 @@
 </script>
 </body>
 </html>
+
