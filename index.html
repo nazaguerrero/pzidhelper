@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PZ B42.13.1 IDhelper</title>
+    <title>PZ B42.13 IDhelper</title>
     <style>
         :root { 
             --bg: #111; --text: #eee; --accent: #ff6600; --card: #222; 
@@ -230,68 +230,78 @@
     }
 
     function render() {
-        const list = document.getElementById('modlist');
-        list.innerHTML = '';
+    const list = document.getElementById('modlist');
+    list.innerHTML = '';
 
-        if (mods.length > 0) {
-            const header = document.createElement('div');
-            header.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;";
-            header.innerHTML = `<h3>Added Mods (${mods.length}):</h3><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
-            list.appendChild(header);
+    if (mods.length > 0) {
+        const header = document.createElement('div');
+        header.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;";
+        header.innerHTML = `<h3>Added Mods (${mods.length}):</h3><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
+        list.appendChild(header);
 
-            document.getElementById('clrBtn').onclick = () => {
-                if(confirm("Wipe the entire list?")) { mods = []; saveToDisk(); render(); }
+        document.getElementById('clrBtn').onclick = () => {
+            if(confirm("Wipe the entire list?")) { mods = []; saveToDisk(); render(); }
+        };
+
+        mods.forEach((m, i) => {
+            const d = document.createElement('div');
+            d.className = 'mod-item';
+            d.draggable = true;
+            d.dataset.wid = m.wid;
+            d.dataset.name = m.name;
+            
+            d.innerHTML = `
+                <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
+                <div style="display:flex; gap:5px;">
+                    <button class="edit-btn" style="background:var(--btn); padding:4px 10px;">✎</button>
+                    <button class="rmv" style="background:var(--danger); padding:4px 10px;">X</button>
+                </div>
+            `;
+            
+            d.querySelector('.edit-btn').onclick = (e) => {
+                e.stopPropagation();
+                const label = d.querySelector('.mod-id-label');
+                const input = document.createElement('input');
+                input.className = 'edit-input';
+                input.value = m.name;
+
+                // --- FIX STARTS HERE ---
+                // Stop mouse events from reaching the draggable "mod-item"
+                input.onmousedown = (ev) => ev.stopPropagation();
+                input.onmouseup = (ev) => ev.stopPropagation();
+                input.onmousemove = (ev) => { 
+                    if (ev.buttons === 1) ev.stopPropagation(); 
+                };
+                // --- FIX ENDS HERE ---
+
+                input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
+                input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
+                label.replaceWith(input);
+                input.focus();
             };
 
-            mods.forEach((m, i) => {
-                const d = document.createElement('div');
-                d.className = 'mod-item';
-                d.draggable = true;
-                d.dataset.wid = m.wid;
-                d.dataset.name = m.name;
-                
-                d.innerHTML = `
-                    <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
-                    <div style="display:flex; gap:5px;">
-                        <button class="edit-btn" style="background:var(--btn); padding:4px 10px;">✎</button>
-                        <button class="rmv" style="background:var(--danger); padding:4px 10px;">X</button>
-                    </div>
-                `;
-                
-                d.querySelector('.edit-btn').onclick = (e) => {
-                    e.stopPropagation();
-                    const label = d.querySelector('.mod-id-label');
-                    const input = document.createElement('input');
-                    input.className = 'edit-input';
-                    input.value = m.name;
-                    input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
-                    input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
-                    label.replaceWith(input);
-                    input.focus();
-                };
+            d.querySelector('.rmv').onclick = (e) => {
+                e.stopPropagation();
+                mods.splice(i, 1);
+                saveToDisk();
+                render();
+            };
+            
+            d.ondragstart = () => {
+                d.classList.add('dragging');
+                highlightOutput(m.wid, m.name);
+            };
+            
+            d.ondragend = () => {
+                d.classList.remove('dragging');
+                render();
+            };
 
-                d.querySelector('.rmv').onclick = (e) => {
-                    e.stopPropagation();
-                    mods.splice(i, 1);
-                    saveToDisk();
-                    render();
-                };
-                
-                d.ondragstart = () => {
-                    d.classList.add('dragging');
-                    highlightOutput(m.wid, m.name);
-                };
-                
-                d.ondragend = () => {
-                    d.classList.remove('dragging');
-                    render();
-                };
-
-                list.appendChild(d);
-            });
-        }
-        updateOut();
+            list.appendChild(d);
+        });
     }
+    updateOut();
+}
 
     function highlightOutput(wid, name) {
         updateOut(); 
@@ -421,5 +431,6 @@
 </script>
 </body>
 </html>
+
 
 
