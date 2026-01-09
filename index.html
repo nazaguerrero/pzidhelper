@@ -3,62 +3,64 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PZ B42 ID Helper Pro</title>
+    <title>PZ B42.13.1 IDhelper</title>
     <style>
         :root { 
             --bg: #111; --text: #eee; --accent: #ff6600; --card: #222; 
             --btn: #444; --btn-hover: #666; --danger: #900; --success: #006600; --output: #0f0; 
-            --warning: #ffcc00;
         }
         * { box-sizing: border-box; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 1rem; line-height: 1.5; }
         .container { max-width: 800px; margin: 0 auto; }
-        h1 { color: var(--accent); text-align: center; margin-bottom: 0.5rem; }
+        h1 { color: var(--accent); text-align: center; margin-bottom: 1.5rem; }
         
-        .version-toggle {
-            display: flex; justify-content: center; align-items: center; gap: 10px;
-            margin-bottom: 20px; background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333;
-        }
-        .v-btn { background: #333; color: #888; border: 1px solid #444; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .v-btn.active { background: var(--accent); color: #000; border-color: #fff; }
-
         #input-container { position: relative; display: flex; gap: 10px; margin-bottom: 10px; }
-        input[type="text"] { flex: 1; padding: 12px; background: var(--card); color: #fff; border: 1px solid #444; border-radius: 4px; }
+        input[type="text"] { flex: 1; padding: 12px; background: var(--card); color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 1rem; }
         
-        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--btn); color: #fff; transition: 0.2s; }
+        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--btn); color: #fff; font-size: 1rem; transition: background 0.2s; }
         button:hover { background: var(--btn-hover); }
         
-        #status { color: var(--warning); margin-bottom: 15px; min-height: 22px; text-align: center; font-weight: bold;}
+        #status { color: #ffcc00; margin-bottom: 15px; min-height: 22px; font-size: 0.9rem; }
         
         .mod-item { 
             background: var(--card); padding: 12px; margin: 8px 0; border-radius: 6px; 
             display: flex; justify-content: space-between; align-items: center; 
-            border: 1px solid #333; cursor: grab;
+            cursor: grab; border: 1px solid #333; transition: all 0.2s ease;
         }
-        .mod-item.dragging { opacity: 0.5; border: 1px dashed var(--accent); }
+        .mod-item:hover { border-color: var(--accent); background: #2a2a2a; }
+        .mod-item.dragging { opacity: 0.8; border: 2px solid var(--accent) !important; background: #333; transform: scale(1.02); }
 
         .search-results-list { 
             position: absolute; top: 100%; left: 0; width: 100%; z-index: 1000; 
-            background: #222; border: 1px solid var(--accent); max-height: 300px; overflow-y: auto;
+            background: #222; border: 1px solid var(--accent); border-radius: 0 0 4px 4px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.7); max-height: 300px; overflow-y: auto;
         }
-        .search-item-btn { width: 100%; text-align: left; padding: 12px; background: transparent; color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; }
+        .search-item-btn { width: 100%; text-align: left; padding: 12px; background: transparent; color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; display: block; }
         .search-item-btn:hover { background: #333; }
 
-        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; border: 1px solid #333; }
-        .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; padding: 0 2px; }
+        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; }
+        .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; }
 
-        .debug-log { margin-top: 40px; font-size: 12px; color: #666; background: #000; padding: 10px; border-radius: 4px; max-height: 150px; overflow-y: auto; }
+        @keyframes flash-success {
+            0% { background-color: #004400; }
+            100% { background-color: #000000; }
+        }
+        .copy-flash { animation: flash-success 0.6s ease-out !important; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .duplicate-shake { animation: shake 0.4s ease-in-out; border-color: var(--danger) !important; }
+
+        .manual-add { margin-top: 30px; padding-top: 20px; border-top: 1px solid #444; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>PZ B42 ID Helper Pro</h1>
-
-    <div class="version-toggle">
-        <button id="v41" class="v-btn">B41 (Legacy)</button>
-        <button id="v42" class="v-btn active">B42 (Backslash \)</button>
-    </div>
+    <h1>Project Zomboid B42 ID Helper</h1>
     
     <div id="input-container">
         <input type="text" id="mainInput" placeholder="Workshop ID, URL, or Mod Name..." />
@@ -67,7 +69,16 @@
     <div id="status">Ready.</div>
     <div id="modlist"></div>
 
-    <div style="margin-top: 20px; border-top: 1px solid #333; padding-top: 20px;">
+    <div class="manual-add">
+        <h3>Manual Add</h3>
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="manWID" placeholder="Workshop ID" />
+            <input type="text" id="manMID" placeholder="Mod ID" />
+            <button id="manBtn">Add</button>
+        </div>
+    </div>
+
+    <div style="margin-top: 30px;">
         <strong>WorkshopItems=</strong>
         <pre id="outW"></pre>
         <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems</button>
@@ -78,30 +89,83 @@
             <button id="copyM" style="background:var(--success)">📋 Copy Mods</button>
         </div>
     </div>
-
-    <div class="debug-log" id="debugLog">Console: Waiting for input...</div>
 </div>
 
 <script>
 (function() {
     const PROXY = 'https://pz-mod-proxy.nazaguerrero.workers.dev';
     let mods = [];
-    let isB42 = true; 
 
-    function log(msg) {
-        const d = document.getElementById('debugLog');
-        d.innerHTML += `<br>> ${msg}`;
-        d.scrollTop = d.scrollHeight;
+    document.addEventListener('DOMContentLoaded', () => {
+        loadFromDisk(); 
+
+        const addBtn = document.getElementById('addBtn');
+        const manBtn = document.getElementById('manBtn');
+        const mainInput = document.getElementById('mainInput');
+        const copyW = document.getElementById('copyW');
+        const copyM = document.getElementById('copyM');
+
+        if (addBtn) addBtn.onclick = handleAdd;
+        if (manBtn) manBtn.onclick = handleManual;
+        if (mainInput) {
+            mainInput.onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
+        }
+        if (copyW) copyW.onclick = () => copyText('outW');
+        if (copyM) copyM.onclick = () => copyText('outM');
+        
+        render(); 
+    });
+
+    function saveToDisk() {
+        try {
+            localStorage.setItem('pz_helper_mods', JSON.stringify(mods));
+        } catch (e) { console.error("Save failed:", e); }
     }
 
-    function save() { localStorage.setItem('pz_ids_v4', JSON.stringify(mods)); }
-    function load() { 
-        const s = localStorage.getItem('pz_ids_v4');
-        if (s) try { mods = JSON.parse(s); } catch(e) { mods = []; }
+    function loadFromDisk() {
+        try {
+            const saved = localStorage.getItem('pz_helper_mods');
+            if (saved) { mods = JSON.parse(saved); }
+        } catch (e) { mods = []; }
+    }
+
+    async function handleAdd() {
+        const input = document.getElementById('mainInput');
+        const val = input.value.trim();
+        if (!val) return;
+        const info = await fetchInfo(val);
+        if (info) {
+            addModToList(info);
+            input.value = ''; // Clear input on success
+        }
+    }
+
+    async function fetchInfo(val) {
+        const status = document.getElementById('status');
+        status.textContent = "Processing...";
+        let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
+
+        if (!wid) {
+            status.textContent = "Searching Steam...";
+            try {
+                const p = new URLSearchParams({ appid: '108600', searchtext: val, section: 'readytouseitems', browsesort: 'trend', p: '1' });
+                const r = await fetch(`${PROXY}/steam-search?${p}`);
+                const t = await r.text();
+                const results = [];
+                const reg = /sharedfiles\/filedetails\/\?id=(\d+)[^>]*>([\s\S]*?)<\/div>/gi;
+                let m;
+                while ((m = reg.exec(t)) !== null && results.length < 5) {
+                    results.push({ wid: m[1], title: m[2].replace(/<[^>]+>/g, '').trim() });
+                }
+                if (results.length === 0) { status.textContent = "No results found."; return null; }
+                showResults(results);
+                return null;
+            } catch (e) { status.textContent = "Search failed."; return null; }
+        }
+        return await getDetails(wid);
     }
 
     async function getDetails(id) {
-        log(`Fetching details for ${id}...`);
         try {
             const fd = new FormData();
             fd.append('itemcount', '1');
@@ -109,17 +173,189 @@
             const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
             const j = await r.json();
             const d = j?.response?.publishedfiledetails?.[0];
-            
             if (!d || d.result !== 1) {
-                log(`Error: Mod ${id} not found or hidden.`);
+                document.getElementById('status').textContent = "Mod not found on Steam.";
                 return null;
             }
+            const name = d.description.match(/mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
+            return { wid: id, name: name };
+        } catch (e) { 
+            document.getElementById('status').textContent = "Error fetching details.";
+            return null; 
+        }
+    }
 
-            const desc = d.description || "";
-            const modIdMatch = desc.match(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/i);
-            const foundId = modIdMatch ? modIdMatch[1] : d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            
-            log(`Success: Found ModID "${foundId}"`);
-            return { wid: id, name: foundId };
-        } catch (e) {
-            log(`Fetch
+    function addModToList(obj) {
+        const exists = mods.some(m => String(m.wid) === String(obj.wid));
+        if (!exists) {
+            mods.push(obj);
+            document.getElementById('status').textContent = "Added: " + obj.name;
+            render();
+            saveToDisk();
+        } else {
+            document.getElementById('status').textContent = "Already in list.";
+            const items = document.querySelectorAll('.mod-item');
+            items.forEach(el => {
+                if (el.dataset.wid === obj.wid) {
+                    el.classList.add('duplicate-shake');
+                    setTimeout(() => el.classList.remove('duplicate-shake'), 400);
+                }
+            });
+        }
+    }
+
+    function render() {
+        const list = document.getElementById('modlist');
+        list.innerHTML = ''; // Full clear
+
+        if (mods.length > 0) {
+            // Header
+            const header = document.createElement('div');
+            header.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;";
+            header.innerHTML = `<h3>Added Mods (${mods.length}):</h3><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
+            list.appendChild(header);
+
+            document.getElementById('clrBtn').onclick = () => {
+                if(confirm("Wipe the entire list?")) {
+                    mods = [];
+                    localStorage.removeItem('pz_helper_mods');
+                    render();
+                }
+            };
+
+            // Items
+            mods.forEach((m, i) => {
+                const d = document.createElement('div');
+                d.className = 'mod-item';
+                d.draggable = true;
+                d.dataset.wid = m.wid;
+                d.dataset.name = m.name;
+                d.innerHTML = `<span>☰ <b>${m.name}</b> (${m.wid})</span><button class="rmv" style="background:var(--danger); padding:4px 8px;">X</button>`;
+                
+                d.querySelector('.rmv').onclick = (e) => {
+                    e.stopPropagation();
+                    mods.splice(i, 1);
+                    render();
+                    saveToDisk();
+                };
+
+                d.addEventListener('dragstart', () => {
+                    d.classList.add('dragging');
+                    highlightOutput(m.wid, m.name);
+                });
+
+                d.addEventListener('dragend', () => {
+                    d.classList.remove('dragging');
+                    saveNewOrder();
+                });
+
+                list.appendChild(d);
+            });
+        }
+
+        updateOut();
+    }
+
+    function highlightOutput(wid, name) {
+        const outW = document.getElementById('outW');
+        const outM = document.getElementById('outM');
+        outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
+        outM.innerHTML = outM.innerHTML.replace(`\\${name}`, `<span class="highlight-text">\\${name}</span>`);
+    }
+
+    function saveNewOrder(isDragging = false) {
+        const currentItems = [...document.querySelectorAll('.mod-item')];
+        mods = currentItems.map(item => ({
+            wid: item.dataset.wid,
+            name: item.dataset.name
+        }));
+        
+        if (isDragging) {
+            const dragItem = document.querySelector('.dragging');
+            updateOut(); 
+            if(dragItem) highlightOutput(dragItem.dataset.wid, dragItem.dataset.name);
+        } else {
+            render();
+            saveToDisk();
+        }
+    }
+
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.mod-item:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
+            else return closest;
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    // Dragover container logic
+    document.getElementById('modlist').addEventListener('dragover', e => {
+        e.preventDefault();
+        const list = document.getElementById('modlist');
+        const dragging = document.querySelector('.dragging');
+        if (!dragging) return;
+        const afterElement = getDragAfterElement(list, e.clientY);
+        if (afterElement == null) list.appendChild(dragging);
+        else list.insertBefore(dragging, afterElement);
+        saveNewOrder(true);
+    });
+
+    function updateOut() {
+        const wids = mods.map(m => m.wid).join(';');
+        const names = mods.map(m => '\\' + m.name).join(';');
+        document.getElementById('outW').innerHTML = mods.length ? `WorkshopItems=${wids}` : '';
+        document.getElementById('outM').innerHTML = mods.length ? `Mods=${names}` : '';
+    }
+
+    function handleManual() {
+        const w = document.getElementById('manWID').value.trim();
+        const n = document.getElementById('manMID').value.trim();
+        if (w && n) {
+            addModToList({wid: w, name: n});
+            document.getElementById('manWID').value = '';
+            document.getElementById('manMID').value = '';
+        }
+    }
+
+    function copyText(id) {
+        const el = document.getElementById(id);
+        if (el && el.innerText) {
+            navigator.clipboard.writeText(el.innerText).then(() => {
+                el.classList.remove('copy-flash');
+                void el.offsetWidth;
+                el.classList.add('copy-flash');
+            });
+        }
+    }
+
+    function showResults(data) {
+        const container = document.getElementById('input-container');
+        const old = document.querySelector('.search-results-list');
+        if (old) old.remove();
+        const list = document.createElement('div');
+        list.className = 'search-results-list';
+        const close = document.createElement('div');
+        close.innerHTML = '<span>Results</span><button style="background:none; border:none; color:#900; float:right; cursor:pointer; font-weight:bold;">✕</button>';
+        close.style.cssText = "padding:10px; background:#333; border-bottom:1px solid #444;";
+        close.onclick = () => list.remove();
+        list.appendChild(close);
+
+        data.forEach(item => {
+            const b = document.createElement('button');
+            b.className = 'search-item-btn';
+            b.innerHTML = `<b>${item.title}</b><small>ID: ${item.wid}</small>`;
+            b.onclick = async () => {
+                const details = await getDetails(item.wid);
+                if (details) addModToList(details);
+                list.remove();
+            };
+            list.appendChild(b);
+        });
+        container.appendChild(list);
+    }
+})();
+</script>
+</body>
+</html>
