@@ -98,6 +98,10 @@
     let mods = [];
 
     document.addEventListener('DOMContentLoaded', () => {
+        // 1. Load data FIRST
+        loadFromDisk(); 
+
+        // 2. Then attach listeners
         const addBtn = document.getElementById('addBtn');
         const manBtn = document.getElementById('manBtn');
         const mainInput = document.getElementById('mainInput');
@@ -111,18 +115,32 @@
         }
         if (copyW) copyW.onclick = () => copyText('outW');
         if (copyM) copyM.onclick = () => copyText('outM');
-
-        loadFromDisk(); // Load saved list on startup
+        
+        // 3. Render whatever was loaded
+        render(); 
     });
 
     // --- STORAGE LOGIC ---
     function saveToDisk() {
-        localStorage.setItem('pz_helper_mods', JSON.stringify(mods));
+        try {
+            const data = JSON.stringify(mods);
+            localStorage.setItem('pz_helper_mods', data);
+            console.log("Saved to storage:", data); // Check F12 console to see this
+        } catch (e) {
+            console.error("Save failed:", e);
+        }
     }
+
     function loadFromDisk() {
-        const saved = localStorage.getItem('pz_helper_mods');
-        if (saved) {
-            try { mods = JSON.parse(saved); render(); } catch (e) {}
+        try {
+            const saved = localStorage.getItem('pz_helper_mods');
+            if (saved) {
+                mods = JSON.parse(saved);
+                console.log("Loaded from storage:", mods);
+            }
+        } catch (e) {
+            console.error("Load failed:", e);
+            mods = [];
         }
     }
 
@@ -331,3 +349,4 @@
 </script>
 </body>
 </html>
+
