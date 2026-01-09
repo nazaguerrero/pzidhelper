@@ -135,22 +135,24 @@
 
         /* Move this outside of the @media block */
 #input-container {
-    position: relative;
+    position: relative; /* This is the anchor */
+    display: block;
     width: 100%;
+    margin-bottom: 0.75rem;
 }
 
 .search-results-list {
-    position: absolute;
-    top: 100%;
+    position: absolute; /* This makes it float */
+    top: 100%;          /* Directly below the input */
     left: 0;
-    right: 0;
-    z-index: 1000;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    width: 100%;        /* Match the width of the input */
+    z-index: 9999;      /* Ensure it stays on top of everything */
+    background: #222;
+    border: 1px solid #ff6600; /* Use your accent color */
     border-radius: 0 0 4px 4px;
-    max-height: 300px;
+    max-height: 250px;
     overflow-y: auto;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.8);
 }
 
 .search-item-btn {
@@ -409,15 +411,26 @@ function showModSelection(candidates, searchInput) {
     const status = document.getElementById('status');
     const inputEl = document.getElementById('input');
     
-    // Clear previous status text
-    status.textContent = 'Results found:';
-    
     // Remove any existing list first
     const existingList = document.querySelector('.search-results-list');
     if (existingList) existingList.remove();
 
     const list = document.createElement('div');
     list.className = 'search-results-list';
+
+    // --- ADDED: Header with Close Button ---
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px 15px; background:#333; border-bottom:1px solid #444; font-size:0.8rem; color:#bbb;';
+    header.innerHTML = `<span>Results for "${searchInput}"</span>`;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none; border:none; color:#fff; cursor:pointer; font-size:1rem; padding:0 5px;';
+    closeBtn.onclick = (e) => { e.stopPropagation(); list.remove(); status.textContent = 'Search cancelled.'; };
+    
+    header.appendChild(closeBtn);
+    list.appendChild(header);
+    // ---------------------------------------
 
     candidates.forEach(cand => {
         const btn = document.createElement('button');
@@ -433,7 +446,7 @@ function showModSelection(candidates, searchInput) {
                     renderList();
                     updateOutput();
                     status.textContent = `Added: ${info.name}`;
-                    inputEl.value = ''; // Clear search on success
+                    inputEl.value = ''; 
                 } else {
                     status.textContent = 'Already added.';
                 }
@@ -443,10 +456,9 @@ function showModSelection(candidates, searchInput) {
         list.appendChild(btn);
     });
 
-    // Append the list to the parent of the input so it positions correctly
+    // This line is crucial for keeping it at the top
     inputEl.parentNode.appendChild(list);
 
-    // Close dropdown if user clicks outside
     const closeDropdown = (e) => {
         if (!list.contains(e.target) && e.target !== inputEl) {
             list.remove();
@@ -514,6 +526,7 @@ function copyBoth() {
 
 
 </html>
+
 
 
 
