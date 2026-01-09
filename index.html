@@ -109,11 +109,12 @@
     });
 
     function saveToDisk() {
-        localStorage.setItem('pz_helper_mods_v1', JSON.stringify(mods));
+        // Changed key name to force a refresh of the UI components
+        localStorage.setItem('pz_helper_pro_v2', JSON.stringify(mods));
     }
 
     function loadFromDisk() {
-        const saved = localStorage.getItem('pz_helper_mods_v1');
+        const saved = localStorage.getItem('pz_helper_pro_v2');
         if (saved) { try { mods = JSON.parse(saved); } catch (e) { mods = []; } }
     }
 
@@ -159,13 +160,17 @@
             const d = j?.response?.publishedfiledetails?.[0];
             if (!d || d.result !== 1) return null;
 
-            // DETECT MULTIPLE IDS
             const description = d.description || "";
-            const idMatches = description.match(/mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.]+)/gi) || [];
-            const firstID = description.match(/mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
             
-            if (idMatches.length > 1) {
-                document.getElementById('status').textContent = "⚠️ Multiple IDs detected! Manual edit advised.";
+            // IMPROVED MULTI-ID DETECTION
+            // This looks for "Mod ID:" case-insensitive, followed by anything, multiple times
+            const idPattern = /mod\s*id/gi;
+            const matches = description.match(idPattern) || [];
+            
+            const firstID = description.match(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
+            
+            if (matches.length > 1) {
+                document.getElementById('status').textContent = "⚠️ " + matches.length + " Mod IDs found in description! Use ✎ to add others.";
             } else {
                 document.getElementById('status').textContent = "Added: " + firstID;
             }
@@ -181,8 +186,6 @@
             saveToDisk();
         } else {
             document.getElementById('status').textContent = "Already in list.";
-            const items = document.querySelectorAll('.mod-item');
-            items.forEach(el => { if (el.dataset.wid === obj.wid) { el.classList.add('duplicate-shake'); setTimeout(() => el.classList.remove('duplicate-shake'), 400); } });
         }
     }
 
@@ -197,7 +200,7 @@
             list.appendChild(header);
 
             document.getElementById('clrBtn').onclick = () => {
-                if(confirm("Wipe the entire list?")) { mods = []; localStorage.removeItem('pz_helper_mods_v1'); render(); }
+                if(confirm("Wipe the entire list?")) { mods = []; saveToDisk(); render(); }
             };
 
             mods.forEach((m, i) => {
@@ -205,30 +208,46 @@
                 d.className = 'mod-item';
                 d.draggable = true;
                 d.dataset.wid = m.wid;
+                
+                // Construct the inner HTML
                 d.innerHTML = `
-                    <span>☰ <b class="mod-id-label">${m.name}</b> <small>(${m.wid})</small></span>
-                    <div>
-                        <button class="edit-btn" title="Edit Mod ID" style="background:var(--btn); padding:4px 8px; margin-right:5px;">✎</button>
-                        <button class="rmv" style="background:var(--danger); padding:4px 8px;">X</button>
+                    <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
+                    <div style="display:flex; gap:5px;">
+                        <button class="edit-btn" style="background:var(--btn); padding:4px 10px;">✎</button>
+                        <button class="rmv" style="background:var(--danger); padding:4px 10px;">X</button>
                     </div>
                 `;
                 
-                // EDIT LOGIC
-                d.querySelector('.edit-btn').onclick = () => {
+                // Button Click Events
+                d.querySelector('.edit-btn').onclick = (e) => {
+                    e.stopPropagation();
                     const label = d.querySelector('.mod-id-label');
                     const input = document.createElement('input');
                     input.className = 'edit-input';
                     input.value = m.name;
-                    input.onblur = () => { m.name = input.value.trim(); render(); saveToDisk(); };
-                    input.onkeydown = (e) => { if(e.key === 'Enter') input.blur(); };
+                    
+                    input.onblur = () => {
+                        m.name = input.value.trim();
+                        saveToDisk();
+                        render();
+                    };
+                    
+                    input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
+                    
                     label.replaceWith(input);
                     input.focus();
                 };
 
-                d.querySelector('.rmv').onclick = () => { mods.splice(i, 1); render(); saveToDisk(); };
+                d.querySelector('.rmv').onclick = (e) => {
+                    e.stopPropagation();
+                    mods.splice(i, 1);
+                    saveToDisk();
+                    render();
+                };
                 
-                d.addEventListener('dragstart', () => { d.classList.add('dragging'); highlightOutput(m.wid, m.name); });
-                d.addEventListener('dragend', () => { d.classList.remove('dragging'); saveNewOrder(); });
+                // Drag Events
+                d.ondragstart = () => d.classList.add('dragging');
+                d.ondragend = () => { d.classList.remove('dragging'); saveNewOrder(); };
 
                 list.appendChild(d);
             });
@@ -236,31 +255,19 @@
         updateOut();
     }
 
-    function highlightOutput(wid, name) {
-        const outW = document.getElementById('outW');
-        const outM = document.getElementById('outM');
-        outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
-        // Handle name if it contains semicolons
-        const searchName = name.includes(';') ? name.split(';')[0] : name;
-        outM.innerHTML = outM.innerHTML.replace(searchName, `<span class="highlight-text">${searchName}</span>`);
-    }
-
-    function saveNewOrder(isDragging = false) {
+    function saveNewOrder() {
         const currentItems = [...document.querySelectorAll('.mod-item')];
-        mods = currentItems.map(item => ({
-            wid: item.dataset.wid,
-            name: item.querySelector('.mod-id-label')?.innerText || mods.find(m => m.wid === item.dataset.wid).name
-        }));
-        
-        if (isDragging) {
-            updateOut(); 
-        } else {
-            render();
-            saveToDisk();
-        }
+        const newMods = [];
+        currentItems.forEach(item => {
+            const wid = item.dataset.wid;
+            const existingMod = mods.find(m => m.wid === wid);
+            if(existingMod) newMods.push(existingMod);
+        });
+        mods = newMods;
+        saveToDisk();
+        updateOut();
     }
 
-    // Dragover container logic
     document.getElementById('modlist').addEventListener('dragover', e => {
         e.preventDefault();
         const dragging = document.querySelector('.dragging');
@@ -269,7 +276,6 @@
         const afterElement = getDragAfterElement(list, e.clientY);
         if (afterElement == null) list.appendChild(dragging);
         else list.insertBefore(dragging, afterElement);
-        saveNewOrder(true);
     });
 
     function getDragAfterElement(container, y) {
@@ -303,9 +309,8 @@
         const el = document.getElementById(id);
         if (el && el.innerText) {
             navigator.clipboard.writeText(el.innerText).then(() => {
-                el.classList.remove('copy-flash');
-                void el.offsetWidth;
                 el.classList.add('copy-flash');
+                setTimeout(() => el.classList.remove('copy-flash'), 600);
             });
         }
     }
@@ -335,3 +340,4 @@
 </script>
 </body>
 </html>
+
