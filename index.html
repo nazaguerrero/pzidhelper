@@ -252,8 +252,7 @@
   </div>
 
   <!-- Optional combined copy (you can remove this block if you don't want it) -->
-  <button id="copyBothBtn" style="display: none; background: #444; color: white; padding: 1rem 1.5rem; font-size: 1.1rem; margin-top: 1.5rem; width: 100%; max-width: 320px; border: none; border-radius: 6px; cursor: pointer;" 
-          onclick="copyBoth()">Copy Both Lines Together</button>
+
 </div>
         
 
@@ -380,12 +379,12 @@ function renderList() {
 function updateOutput() {
     const workshopEl = document.getElementById('workshop-line');
     const modsEl = document.getElementById('mods-line');
-    const bothBtn = document.getElementById('copyBothBtn');
+// REMOVE THIS LINE: const bothBtn = document.getElementById('copyBothBtn');
     
     if (mods.length === 0) {
         workshopEl.textContent = '';
         modsEl.textContent = '';
-        if (bothBtn) bothBtn.style.display = 'none';
+        // REMOVE THIS LINE: if (bothBtn) bothBtn.style.display = 'none';
         return;
     }
 
@@ -395,7 +394,7 @@ function updateOutput() {
     
     workshopEl.textContent = `WorkshopItems=${wids}`;
     modsEl.textContent = `Mods=${names}`;
-    if (bothBtn) bothBtn.style.display = 'block';
+    // REMOVE THIS LINE: if (bothBtn) bothBtn.style.display = 'block';
 }
 
 function showModSelection(candidates, searchInput) {
@@ -504,19 +503,15 @@ async function getDetailsOnly(wid) {
     }
 }
 
-// Copy functions
-function copyBoth() {
-    const wids = mods.map(m => m.wid).join(';');
-    const names = mods.map(m => '\\' + m.name).join(';');
-    const text = `WorkshopItems=${wids}\nMods=${names}`;
-    navigator.clipboard.writeText(text).then(() => alert('Copied both lines!'));
-}
+// Copy functions //DELETED
+
 </script>
 
 </body>
 
 
 </html>
+
 
 
 
