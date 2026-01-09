@@ -2,7 +2,7 @@
 
 A simple, single-file **HTML + JavaScript tool** that helps Project Zomboid server admins grab **Workshop IDs** and **Mod IDs** from Steam URLs, IDs, or mod names. It auto-adds the leading `\` for **B42.13.1+** compatibility and generates ready-to-paste lines for `servertest.ini` / `server.ini`.
 
-**Live Demo:** [https://yourusername.github.io/pz-mod-grabber/](https://yourusername.github.io/pz-mod-grabber/) (replace with your GitHub Pages link after enabling)
+**Live Demo:** [https://nazaguerrero.github.io/pz-mod-grabber/](https://nazaguerrero.github.io/pz-mod-grabber/)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/yourusername/pz-mod-grabber?style=social)](https://github.com/yourusername/pz-mod-grabber)
