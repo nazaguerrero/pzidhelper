@@ -252,43 +252,45 @@ async function fetchModInfo(input) {
     console.log('Search response length:', text.length);
     console.log('First 800 chars:', text.substring(0, 800));
 
-      // Extract potential mod links + titles (more flexible regex)
+// Extract potential mod links + titles (handles relative URLs + nested HTML)
 const results = [];
-const linkRegex = /href=["'](?:https?:\/\/steamcommunity\.com)?\/sharedfiles\/filedetails\/\?id=(\d+)["'][^>]*>(.*?)<\/a>/gi;
+const linkRegex = /href=["'](?:https?:\/\/steamcommunity\.com)?\/sharedfiles\/filedetails\/\?id=(\d+)["']/gi;
 
-let match;
-while ((match = linkRegex.exec(text)) !== null) {
-  const id = match[1];
-  // Capture title more safely (innerHTML up to </a>, strip tags)
-  let rawTitle = match[2] || '';
-  let title = rawTitle
-    .replace(/<[^>]+>/g, '')           // strip any nested tags
-    .replace(/&[^;]+;/g, ' ')          // decode entities
-    .trim();
+// First collect all unique IDs from hrefs
+const seenIds = new Set();
+let idMatch;
+while ((idMatch = linkRegex.exec(text)) !== null) {
+  const id = idMatch[1];
+  if (seenIds.has(id)) continue;
+  seenIds.add(id);
 
-  // Skip empty, policy, guides, or obvious junk
-  if (!title || 
-      id === '2872282653' || 
-      title.toLowerCase().includes('policy') || 
-      title.toLowerCase().includes('guideline') || 
-      title.toLowerCase().includes('welcome') || 
-      title.length < 3) {
+  // Find the title for this ID (look forward/backward in HTML for <a>...</a>)
+  // This is approximate but effective for Steam's structure
+  const startPos = idMatch.index;
+  const endPos = text.indexOf('</a>', startPos);
+  if (endPos === -1) continue;
+
+  const anchorSnippet = text.substring(startPos - 200, endPos + 4); // grab ~200 chars before + </a>
+  const titleMatch = anchorSnippet.match(/>([^<]*(?:<[^>]+>[^<]*)*)<\/a>/);
+  let title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : 'Unknown Title';
+
+  // Clean title
+  title = title.replace(/&[^;]+;/g, ' ').trim();
+
+  // Skip junk
+  if (!title || title.length < 3 ||
+      id === '2872282653' ||
+      title.toLowerCase().includes('policy') ||
+      title.toLowerCase().includes('guideline') ||
+      title.toLowerCase().includes('welcome')) {
     continue;
   }
 
   results.push({ wid: id, title });
 }
 
-// Remove duplicates by ID
-const seen = new Set();
-const uniqueResults = results.filter(item => {
-  if (seen.has(item.wid)) return false;
-  seen.add(item.wid);
-  return true;
-});
-
-// Limit to first 5
-const candidates = uniqueResults.slice(0, 5);
+// Limit to first 5 unique
+const candidates = results.slice(0, 5);
 
       if (candidates.length === 0) {
         status.textContent = 'No valid mod results found. Try a more specific name, full URL, or numeric ID.';
@@ -534,6 +536,7 @@ document.getElementById('input').addEventListener('keydown', function(event) {
 
 
 </html>
+
 
 
 
