@@ -231,50 +231,62 @@ async function fetchModInfo(input) {
   }
 
   // 3. If no ID → search via PROXY (no CORS issues)
-  if (!wid) {
-    status.textContent = `Searching for "${input}"...`;
-    try {
-      const params = new URLSearchParams({
-  appid: '108600',
-  searchtext: input,
-  section: 'readytouseitems',
-  // browsesort: 'textsearch',  ← comment out or change to 'trend'
-  days: '-1',
-  p: '1',
-  requiredtags: ['mod']
-});
-      const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      });
-      const text = await resp.text();
-      const match = text.match(/filedetails\/\?id=(\d+)/g);  // get all matches
-if (match) {
-  // Skip known junk IDs like the policy one
-  const junkIds = ['2872282653'];
-  for (const m of match) {
-    const id = m.match(/(\d+)/)[1];
-    if (!junkIds.includes(id)) {
-      wid = id;
-      break;
+if (!wid) {
+  status.textContent = `Searching for "${input}"...`;
+  try {
+    const params = new URLSearchParams({
+      appid: '108600',
+      searchtext: input,
+      section: 'readytouseitems',
+      // browsesort: 'textsearch',  // commented out - good choice
+      days: '-1',
+      p: '1',
+      requiredtags: ['mod']
+    });
+
+    const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Search request failed: ${resp.status}`);
     }
-  }
-  if (wid) status.textContent += ` → found ID ${wid}`;
-    // Add warning if we had to skip the policy guide (meaning it was the first result)
-    if (match[0].includes('2872282653')) {
-      status.textContent += ' (Warning: Steam search showed "Modding Policy" guide first — verify this is the correct mod!)';
-    }
-    } else {
-    // All matches were junk → no real mod found
-    status.textContent = 'No valid mod found (Steam showed only the Modding Policy guide or nothing relevant). Try a more specific name, full URL, or numeric ID.';
-    return null;
-}
+
+    const text = await resp.text();
+    const match = text.match(/filedetails\/\?id=(\d+)/g); // global match → array of full matches
+
+    if (match && match.length > 0) {
+      const junkIds = ['2872282653'];
+      let candidateWid = null;
+
+      for (const m of match) {
+        const id = m.match(/(\d+)/)[1];
+        if (!junkIds.includes(id)) {
+          candidateWid = id;
+          break;
+        }
+      }
+
+      if (candidateWid) {
+        wid = candidateWid;
+        status.textContent += ` → found ID ${wid}`;
+
+        // Warning if policy guide was the very first result
+        if (match[0].includes('2872282653')) {
+          status.textContent += ' (Warning: Steam search showed "Modding Policy" guide first — verify this is the correct mod!)';
+        }
       } else {
-        status.textContent = 'No results found on Steam Workshop.';
+        status.textContent = 'No valid mod found (only Modding Policy guide or junk results). Try full URL or numeric ID.';
         return null;
       }
-    } catch (e) {
-      status.textContent = 'Search failed: ' + e.message;
+    } else {
+      status.textContent = 'No results found on Steam Workshop.';
       return null;
+    }
+  } catch (e) {
+    status.textContent = 'Search failed: ' + e.message;
+    console.error(e); // ← helps debugging in browser console
+    return null;
     }
   }
 
@@ -429,5 +441,6 @@ function copyBoth() {
 
 
 </html>
+
 
 
