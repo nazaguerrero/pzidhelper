@@ -1,0 +1,24 @@
+# Project Zomboid B42 ID helper
+
+A simple, single-file **HTML + JavaScript tool** that helps Project Zomboid server admins grab **Workshop IDs** and **Mod IDs** from Steam URLs, IDs, or mod names. It auto-adds the leading `\` for **B42.13.1+** compatibility and generates ready-to-paste lines for `servertest.ini` / [`server.ini`.]
+
+**Live Demo:** [pzidhelper](https://nazaguerrero.github.io/pzidhelper//)
+
+## Features
+
+- Add mods by **Workshop ID**, **full Steam URL**, or **mod name** (auto-searches Steam Workshop, show first 5 results)
+- Robust **Mod ID** extraction from description (with fallback to sanitized title)
+- **Manual add** mode for cases where Steam API fetch fails like server maintenance or other problems
+- Auto-adds **leading `\`** to Mod IDs for **B42.13.1+** compatibility and also you can toogle ";" for B41
+- Responsive design (mobile-friendly)
+- Copy-ready **WorkshopItems** and **Mods** lines
+
+## Demo
+
+![Screenshot of the tool](https://github.com/nazaguerrero/pzidhelper/blob/main/IDhelperScreen1.jpg)  
+## How to Use
+
+1. **Open the tool** in any browser (works offline after first load)
+2. Paste a **Workshop ID**, **Steam URL**, or **mod name** → click **Add Mod**
+3. Repeat for all mods
+4. Click **copyWorkshopItems** or **CopyMods** → paste into your `servertest.ini` or `server.ini`:
