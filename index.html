@@ -276,20 +276,30 @@
         const outW = document.getElementById('outW');
         const outM = document.getElementById('outM');
 
+        // 1. Highlight Workshop ID (unchanged)
         outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
         
-        const parts = name.split(';');
+        // 2. Highlight Mod IDs
+        // We split by semicolon and SORT by length (longest first)
+        const parts = name.split(';')
+            .map(p => p.trim())
+            .filter(p => p !== "")
+            .sort((a, b) => b.length - a.length); // Longest strings first!
+
         let mContent = outM.innerHTML;
+        
         parts.forEach(p => {
-            const clean = p.trim();
-            if(clean) {
-                const searchStr = isB42 ? `\\${clean}` : clean;
-                // Double escape for regex since backslash is a special char
-                const escaped = searchStr.replace(/\\/g, '\\\\');
-                const reg = new RegExp(`(${escaped})`, 'g');
-                mContent = mContent.replace(reg, `<span class="highlight-text">$1</span>`);
-            }
+            const searchStr = isB42 ? `\\${p}` : p;
+            // Escape for Regex
+            const escaped = searchStr.replace(/\\/g, '\\\\');
+            
+            /* We use a 'Negative Lookahead' (?!) to ensure we don't 
+               re-highlight something that is already inside a span tag.
+            */
+            const reg = new RegExp(`(${escaped})(?![^<]*>|[^<>]*<\/span>)`, 'g');
+            mContent = mContent.replace(reg, `<span class="highlight-text">$1</span>`);
         });
+        
         outM.innerHTML = mContent;
     }
 
@@ -389,3 +399,4 @@
 </script>
 </body>
 </html>
+
