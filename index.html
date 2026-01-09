@@ -43,12 +43,29 @@
 
         pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; }
         .manual-add { margin-top: 30px; padding-top: 20px; border-top: 1px solid #444; }
+
+        /* The glow effect for the mod you are holding */
+    .mod-item.dragging {
+    opacity: 0.8;
+    border: 2px solid var(--accent);
+    background: #333;
+    transform: scale(1.02);
+}
+
+    /* Highlight for the specific text inside the output boxes */
+    .highlight-text {
+    background-color: var(--accent);
+    color: #000;
+    font-weight: bold;
+    border-radius: 2px;
+    padding: 0 2px;
+}
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Project Zomboid ID Helper</h1>
+    <h1>Project Zomboid B42 ID Helper</h1>
     
     <div id="input-container">
         <input type="text" id="mainInput" placeholder="Workshop ID, URL, or Mod Name..." />
@@ -158,7 +175,7 @@
         }
     }
 
-    function render() {
+function render() {
         const list = document.getElementById('modlist');
         list.innerHTML = mods.length ? '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><h3>Added Mods:</h3><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button></div>' : '';
         
@@ -170,7 +187,6 @@
             const d = document.createElement('div');
             d.className = 'mod-item';
             d.draggable = true;
-            // Store the data so we can find it later
             d.dataset.wid = m.wid;
             d.dataset.name = m.name;
             d.innerHTML = `<span>☰ <b>${m.name}</b> (${m.wid})</span><button class="rmv" style="background:var(--danger); padding:4px 8px;">X</button>`;
@@ -181,7 +197,13 @@
                 render(); 
             };
             
-            d.addEventListener('dragstart', () => d.classList.add('dragging'));
+            // START DRAG: Highlight output text
+            d.addEventListener('dragstart', () => {
+                d.classList.add('dragging');
+                highlightOutput(m.wid, m.name);
+            });
+
+            // END DRAG: Save order and clear highlight
             d.addEventListener('dragend', () => {
                 d.classList.remove('dragging');
                 saveNewOrder();
@@ -190,7 +212,6 @@
             list.appendChild(d);
         });
 
-        // This makes items move visually as you drag over them
         list.addEventListener('dragover', e => {
             e.preventDefault();
             const dragging = document.querySelector('.dragging');
@@ -201,9 +222,38 @@
             } else {
                 list.insertBefore(dragging, afterElement);
             }
+            // Real-time update of output while dragging
+            saveNewOrder(true); 
         });
 
         updateOut();
+    }
+
+    function highlightOutput(wid, name) {
+        const outW = document.getElementById('outW');
+        const outM = document.getElementById('outM');
+
+        // Wrap the dragging mod's ID/Name in a highlight span
+        outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
+        outM.innerHTML = outM.innerHTML.replace(`\\${name}`, `<span class="highlight-text">\\${name}</span>`);
+    }
+
+    function saveNewOrder(isDragging = false) {
+        const currentItems = [...document.querySelectorAll('.mod-item')];
+        const newOrder = currentItems.map(item => ({
+            wid: item.dataset.wid,
+            name: item.dataset.name
+        }));
+        mods = newOrder;
+        
+        // If we are mid-drag, keep the highlight active
+        if (isDragging) {
+            const dragItem = document.querySelector('.dragging');
+            updateOut(); // Redraw basic text
+            if(dragItem) highlightOutput(dragItem.dataset.wid, dragItem.dataset.name);
+        } else {
+            render(); // Final redraw
+        }
     }
 
     // Determine which item the mouse is currently over
@@ -221,22 +271,13 @@
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
-    // READ the visual order of the HTML and UPDATE the "mods" array
-    function saveNewOrder() {
-        const currentItems = [...document.querySelectorAll('.mod-item')];
-        const newOrder = currentItems.map(item => {
-            return {
-                wid: item.dataset.wid,
-                name: item.dataset.name
-            };
-        });
-        mods = newOrder;
-        updateOut(); // Refresh the Green Text lines
-    }
-
     function updateOut() {
-        document.getElementById('outW').textContent = mods.length ? `WorkshopItems=${mods.map(m => m.wid).join(';')}` : '';
-        document.getElementById('outM').textContent = mods.length ? `Mods=${mods.map(m => '\\' + m.name).join(';')}` : '';
+        // Use innerHTML instead of textContent so our highlight spans work
+        const wids = mods.map(m => m.wid).join(';');
+        const names = mods.map(m => '\\' + m.name).join(';');
+        
+        document.getElementById('outW').innerHTML = mods.length ? `WorkshopItems=${wids}` : '';
+        document.getElementById('outM').innerHTML = mods.length ? `Mods=${names}` : '';
     }
 
     function handleManual() {
@@ -279,3 +320,4 @@
 </script>
 </body>
 </html>
+
