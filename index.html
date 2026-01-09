@@ -208,15 +208,14 @@
 
     </div>
 
-    <script>
-const PROXY_BASE = 'https://pz-mod-proxy.nazaguerrero.workers.dev';  // ← REPLACE with YOUR actual Worker URL from wrangler deploy
+<script>
+const PROXY_BASE = 'https://pz-mod-proxy.nazaguerrero.workers.dev';
 
 const mods = []; // {wid: string, name: string}
 
 async function fetchModInfo(input) {
   const status = document.getElementById('status');
   status.textContent = 'Processing...';
-
   let wid = null;
   input = input.trim();
 
@@ -230,68 +229,58 @@ async function fetchModInfo(input) {
     if (urlMatch) wid = urlMatch[1];
   }
 
-  // 3. If no ID → search via PROXY (no CORS issues)
-if (!wid) {
-  status.textContent = `Searching for "${input}"...`;
-  try {
-    const params = new URLSearchParams({
-      appid: '108600',
-      searchtext: input,
-      section: 'readytouseitems',
-      browsesort: 'trend',          // ← changed to trend (popular first)
-      days: '-1',
-      p: '1'
-      // no requiredtags anymore
-    });
+  // 3. If no ID → search via PROXY
+  if (!wid) {
+    status.textContent = `Searching for "${input}"...`;
+    try {
+      const params = new URLSearchParams({
+        appid: '108600',
+        searchtext: input,
+        section: 'readytouseitems',
+        browsesort: 'trend',
+        days: '-1',
+        p: '1'
+      });
 
-    const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
+      const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-    const text = await resp.text();
+      const text = await resp.text();
 
-    // Extract ALL potential mod links + titles
-    const results = [];
-    const itemRegex = /<a href="https:\/\/steamcommunity.com\/sharedfiles\/filedetails\/\?id=(\d+)"[^>]*>([^<]+)<\/a>/gi;
-    let match;
-
-    while ((match = itemRegex.exec(text)) !== null) {
-      const id = match[1];
-      let title = match[2].trim();
-
-      // Clean up title a bit (remove HTML entities if any)
-      title = title.replace(/&[^;]+;/g, '');
-
-      // Skip junk/policy
-      if (id === '2872282653' || title.toLowerCase().includes('policy') || title.toLowerCase().includes('guideline')) {
-        continue;
+      // Extract potential mod links + titles
+      const results = [];
+      const itemRegex = /<a href="https:\/\/steamcommunity.com\/sharedfiles\/filedetails\/\?id=(\d+)"[^>]*>([^<]+)<\/a>/gi;
+      let match;
+      while ((match = itemRegex.exec(text)) !== null) {
+        const id = match[1];
+        let title = match[2].trim().replace(/&[^;]+;/g, '');
+        // Skip junk/policy
+        if (id === '2872282653' || title.toLowerCase().includes('policy') || title.toLowerCase().includes('guideline')) {
+          continue;
+        }
+        results.push({ wid: id, title });
       }
 
-      results.push({ wid: id, title: title });
-    }
+      const candidates = results.slice(0, 5);
 
-    // Limit to first 5 reasonable results
-    const candidates = results.slice(0, 5);
+      if (candidates.length === 0) {
+        status.textContent = 'No valid mod results found. Try a more specific name, full URL, or numeric ID.';
+        return null;
+      }
 
-    if (candidates.length === 0) {
-      status.textContent = 'No valid mod results found. Try a more specific name, full URL, or numeric ID.';
+      showModSelection(candidates, input);
+      return null; // Wait for user choice
+    } catch (e) {
+      status.textContent = 'Search failed: ' + e.message;
+      console.error('Search error:', e);
       return null;
-    }
-
-    // Show selection UI
-    showModSelection(candidates, input);
-    return null; // Don't add anything yet — wait for user choice
-
-  } catch (e) {
-    status.textContent = 'Search failed: ' + e.message;
-    console.error(e);
-    return null;
     }
   }
 
-  // Now get details via PROXY
+  // Direct fetch details if we have wid
   if (wid) {
     status.textContent = `Fetching details for ${wid}...`;
     try {
@@ -303,6 +292,7 @@ if (!wid) {
         method: 'POST',
         body: formData
       });
+
       const json = await resp.json();
       const details = json?.response?.publishedfiledetails?.[0];
 
@@ -312,12 +302,8 @@ if (!wid) {
       }
 
       let title = details.title || 'Unknown';
-      let desc = details.description || '';
+      let desc = (details.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
-      // Clean HTML
-      desc = desc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-
-      // Extract Mod ID patterns (PZ-specific)
       let modName = null;
       const patterns = [
         /mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.\s]+)/i,
@@ -332,7 +318,6 @@ if (!wid) {
       }
 
       if (!modName) {
-        // Fallback: sanitize title
         modName = title.replace(/\s*\([^)]+\)/g, '').replace(/[\[\]].*?$/, '').trim();
         modName = modName.replace(/[^a-zA-Z0-9_\-]/g, '');
         status.textContent += ` → Fallback: "${modName}" (verify in description!)`;
@@ -343,14 +328,17 @@ if (!wid) {
       return { wid: wid, name: modName };
     } catch (e) {
       status.textContent = 'Proxy/API error: ' + e.message + ' (try manual add)';
+      console.error('Details error:', e);
       return null;
     }
   }
 
+  status.textContent = 'No valid input detected.';
   return null;
 }
 
 async function addMod() {
+  console.log('addMod called'); // ← debug log
   const inputEl = document.getElementById('input');
   const val = inputEl.value.trim();
   if (!val) return;
@@ -365,6 +353,8 @@ async function addMod() {
     renderList();
     updateOutput();
     inputEl.value = '';
+  } else {
+    console.log('No info returned from fetchModInfo');
   }
 }
 
@@ -388,22 +378,18 @@ function renderList() {
 
 function updateOutput() {
   const workshopEl = document.getElementById('workshop-line');
-  const modsEl     = document.getElementById('mods-line');
-  const bothBtn    = document.getElementById('copyBothBtn');
-
+  const modsEl = document.getElementById('mods-line');
+  const bothBtn = document.getElementById('copyBothBtn');
   if (mods.length === 0) {
     workshopEl.textContent = '';
-    modsEl.textContent     = '';
+    modsEl.textContent = '';
     if (bothBtn) bothBtn.style.display = 'none';
     return;
   }
-
-  const wids  = mods.map(m => m.wid).join(';');
+  const wids = mods.map(m => m.wid).join(';');
   const names = mods.map(m => '\\' + m.name).join(';');
-
   workshopEl.textContent = `WorkshopItems=${wids}`;
-  modsEl.textContent     = `Mods=${names}`;
-
+  modsEl.textContent = `Mods=${names}`;
   if (bothBtn) bothBtn.style.display = 'block';
 }
 
@@ -424,17 +410,26 @@ function copyMods() {
     alert('Copy failed – select the text manually.');
   });
 }
-        
+
+function copyBoth() {
+  const wids = mods.map(m => m.wid).join(';');
+  const names = mods.map(m => '\\' + m.name).join(';');
+  const text = `WorkshopItems=${wids}\nMods=${names}`;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Both lines copied together!\nPaste where needed in your .ini');
+  }).catch(() => {
+    alert('Copy failed – select manually.');
+  });
+}
+
 function showModSelection(candidates, searchInput) {
   const status = document.getElementById('status');
   status.innerHTML = `Multiple matches found for "${searchInput}". Choose the correct one:<br>`;
-
   const list = document.createElement('div');
   list.style.marginTop = '1rem';
   list.style.display = 'flex';
   list.style.flexDirection = 'column';
   list.style.gap = '0.75rem';
-
   candidates.forEach((cand, index) => {
     const btn = document.createElement('button');
     btn.textContent = `${index + 1}. ${cand.title} (ID: ${cand.wid})`;
@@ -445,10 +440,9 @@ function showModSelection(candidates, searchInput) {
     btn.style.borderRadius = '4px';
     btn.style.cursor = 'pointer';
     btn.style.textAlign = 'left';
-
     btn.onclick = async () => {
       status.textContent = `Fetching details for ${cand.title}...`;
-      const info = await getDetailsOnly(cand.wid); // we'll define this next
+      const info = await getDetailsOnly(cand.wid);
       if (info) {
         if (mods.some(m => m.wid === info.wid)) {
           status.textContent = 'Already added.';
@@ -459,34 +453,27 @@ function showModSelection(candidates, searchInput) {
         updateOutput();
         status.textContent = `Added: ${info.name} (ID ${info.wid})`;
       }
-      list.remove(); // clean up selection UI
+      list.remove();
     };
-
     list.appendChild(btn);
   });
-
   status.appendChild(list);
 }
-        
+
 async function getDetailsOnly(wid) {
   try {
     const formData = new FormData();
     formData.append('itemcount', '1');
     formData.append('publishedfileids[0]', wid);
-
     const resp = await fetch(`${PROXY_BASE}/steam-details`, {
       method: 'POST',
       body: formData
     });
-
     const json = await resp.json();
     const details = json?.response?.publishedfiledetails?.[0];
-
     if (!details || details.result !== 1) return null;
-
     let title = details.title || 'Unknown';
     let desc = (details.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-
     let modName = null;
     const patterns = [
       /mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.\s]+)/i,
@@ -499,35 +486,22 @@ async function getDetailsOnly(wid) {
         break;
       }
     }
-
     if (!modName) {
       modName = title.replace(/\s*\([^)]+\)/g, '').replace(/[\[\]].*?$/, '').trim();
       modName = modName.replace(/[^a-zA-Z0-9_\-]/g, '');
     }
-
     return { wid: wid, name: modName };
   } catch (e) {
     console.error(e);
     return null;
   }
 }
-        
-function copyBoth() {
-  const wids  = mods.map(m => m.wid).join(';');
-  const names = mods.map(m => '\\' + m.name).join(';');
-  const text  = `WorkshopItems=${wids}\nMods=${names}`;
 
-  navigator.clipboard.writeText(text).then(() => {
-    alert('Both lines copied together!\nPaste where needed in your .ini');
-  }).catch(() => {
-    alert('Copy failed – select manually.');
-  }
-
-// Allow pressing Enter in the input field to trigger Add Mod
+// Enter key support - placed at top level
 document.getElementById('input').addEventListener('keydown', function(event) {
   if (event.key === 'Enter') {
-    event.preventDefault();           // prevent form submission / page refresh
-    addMod();                         // call the same function as the button
+    event.preventDefault();
+    addMod();
   }
 });
 </script>
@@ -536,6 +510,7 @@ document.getElementById('input').addEventListener('keydown', function(event) {
 
 
 </html>
+
 
 
 
