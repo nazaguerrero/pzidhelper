@@ -1,0 +1,29 @@
+# macOS junk
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows junk
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary/build files
+*.log
+*.tmp
+*.bak
+*~
+
+# If you ever minify or build the HTML
+dist/
+build/
+
+# Personal testing files you don't want to commit
+test.html
+local.html
