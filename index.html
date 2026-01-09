@@ -172,6 +172,10 @@
     color: #fff;
 }
 
+.search-item-btn b { display: block; font-size: 0.95rem; }
+.search-item-btn small { color: #888; font-size: 0.8rem; }
+.search-item-btn:last-child { border-bottom: none;       }
+
         @media (max-width: 600px) {
             body {
                 padding: 0.75rem;
@@ -198,46 +202,33 @@
     <button onclick="addMod()">Add Mod</button>
 </div>
 
-
-.search-item-btn:last-child {
-  border-bottom: none;
-}
-
-.search-item-btn b {
-  display: block;
-  color: #fff;
-  font-size: 0.95rem;
-}
-
-.search-item-btn small {
-  color: #888;
-}
         }
     </style>
 </head>
 
 <body>
 
-    <div class="container">
-
+<div class="container">
         <h1>Project Zomboid B42.13.1 ID Helper</h1>
         <p>Paste Workshop ID, full Steam URL, or mod name → Add → repeat → copy the lines below.</p>
         <p><strong>B42.13.1 ready:</strong> Mods get leading <code>\</code> (e.g. <code>\Hydrocraft</code>).</p>
 
-        <input type="text" id="input"
-            placeholder="e.g. 2778991696   OR   https://steamcommunity.com/.../?id=2778991696   OR   Hydrocraft" />
-        <button onclick="addMod()">Add Mod</button>
+        <div id="input-container">
+            <input type="text" id="input"
+                placeholder="e.g. 2778991696   OR   https://steamcommunity.com/.../?id=2778991696   OR   Hydrocraft" />
+            <button onclick="addMod()">Add Mod</button>
+        </div>
 
         <div id="status"></div>
-
         <div id="modlist"></div>
 
-        <!-- Manual fallback for API issues -->
         <div class="manual-add">
             <h3>Manual Add (if auto-fetch fails)</h3>
             <input type="text" id="manualWid" placeholder="Workshop ID (e.g. 3171167894)" />
             <input type="text" id="manualName" placeholder="Mod ID (e.g. damnlib)" />
             <button onclick="addManual()">Add Manually</button>
+        </div>
+        
         </div>
 
         <div id="output-area" style="margin-top: 2rem;">
@@ -526,6 +517,7 @@ function copyBoth() {
 
 
 </html>
+
 
 
 
