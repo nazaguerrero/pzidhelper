@@ -210,332 +210,234 @@
 
 <script>
 const PROXY_BASE = 'https://pz-mod-proxy.nazaguerrero.workers.dev';
+const mods = []; 
 
-const mods = []; // {wid: string, name: string}
+// 1. ENSURE ELEMENTS EXIST BEFORE ATTACHING LISTENERS
+window.addEventListener('DOMContentLoaded', () => {
+    const inputEl = document.getElementById('input');
+    if (inputEl) {
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addMod();
+            }
+        });
+    }
+});
 
 async function fetchModInfo(input) {
-  const status = document.getElementById('status');
-  status.textContent = 'Processing...';
-  let wid = null;
-  input = input.trim();
+    const status = document.getElementById('status');
+    status.textContent = 'Processing...';
+    let wid = null;
+    input = input.trim();
 
-  // 1. Try direct number
-  if (/^\d{7,}$/.test(input)) {
-    wid = input;
-  }
-  // 2. Extract from URL
-  else {
-    const urlMatch = input.match(/(?:id=|filedetails\/\?id=)(\d+)/i);
-    if (urlMatch) wid = urlMatch[1];
-  }
-
-  // 3. If no ID → search via PROXY
-  if (!wid) {
-    status.textContent = `Searching for "${input}"...`;
-    try {
-      const params = new URLSearchParams({
-        appid: '108600',
-        searchtext: input,
-        section: 'readytouseitems',
-        browsesort: 'trend',
-        days: '-1',
-        p: '1'
-      });
-
-      const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      });
-
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-      const text = await resp.text();
-    console.log('Search response length:', text.length);
-    console.log('First 800 chars:', text.substring(0, 800));
-
-// Extract potential mod links + titles - improved for Steam's current structure
-const results = [];
-const linkRegex = /href=["'](?:https?:\/\/steamcommunity\.com)?\/sharedfiles\/filedetails\/\?id=(\d+)["']/gi;
-
-let idMatch;
-while ((idMatch = linkRegex.exec(text)) !== null) {
-  const id = idMatch[1];
-  const start = idMatch.index - 300; // look back for context
-  const end = text.indexOf('</a>', idMatch.index + id.length + 50) + 4;
-  if (end === -1 || start < 0) continue;
-
-  const anchorArea = text.substring(start, end);
-  // Extract visible title text (strip tags, clean)
-  let title = anchorArea
-    .replace(/<[^>]+>/g, ' ')          // remove HTML tags
-    .replace(/\s+/g, ' ')              // normalize spaces
-    .replace(/&[^;]+;/g, ' ')          // decode entities
-    .trim();
-
-  // Trim to likely title part (after any preceding junk)
-  title = title.split(' ').slice(-10).join(' '); // rough heuristic: last words are often title
-
-  // Skip junk
-  if (!title || title.length < 5 ||
-      id === '2872282653' ||
-      title.toLowerCase().includes('policy') ||
-      title.toLowerCase().includes('guideline') ||
-      title.toLowerCase().includes('welcome') ||
-      title.includes('Steam Workshop')) {
-    continue;
-  }
-
-  results.push({ wid: id, title });
-}
-
-// Dedupe and limit
-const unique = [...new Map(results.map(item => [item.wid, item])).values()];
-const candidates = unique.slice(0, 5);
-
-if (candidates.length === 0) {
-  status.textContent = 'No valid mod results parsed from Steam (page structure changed?). Try direct ID/URL.';
-  console.log('No candidates - full text length:', text.length);
-  return null;
-}
-
-// Debug: log what we found
-console.log('Found candidates:', candidates);
-
-// Show selection
-showModSelection(candidates, input);
-return null;
+    // 1. Direct ID check
+    if (/^\d{7,}$/.test(input)) {
+        wid = input;
+    } 
+    // 2. URL check
+    else if (input.includes('id=')) {
+        const urlMatch = input.match(/[?&]id=(\d+)/i);
+        if (urlMatch) wid = urlMatch[1];
     }
-  }
 
-  // Direct fetch details if we have wid
-  if (wid) {
-    status.textContent = `Fetching details for ${wid}...`;
-    try {
-      const formData = new FormData();
-      formData.append('itemcount', '1');
-      formData.append('publishedfileids[0]', wid);
+    // 3. Search Mode (No ID found)
+    if (!wid) {
+        status.textContent = `Searching Steam for "${input}"...`;
+        try {
+            const params = new URLSearchParams({
+                appid: '108600',
+                searchtext: input,
+                section: 'readytouseitems',
+                browsesort: 'trend',
+                p: '1'
+            });
 
-      const resp = await fetch(`${PROXY_BASE}/steam-details`, {
-        method: 'POST',
-        body: formData
-      });
+            const resp = await fetch(`${PROXY_BASE}/steam-search?${params}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const text = await resp.text();
 
-      const json = await resp.json();
-      const details = json?.response?.publishedfiledetails?.[0];
+            const results = [];
+            // Regex for Steam Workshop search result IDs and Titles
+            const searchRegex = /sharedfiles\/filedetails\/\?id=(\d+)[^>]*>([\s\S]*?)<\/div>/gi;
+            
+            let match;
+            while ((match = searchRegex.exec(text)) !== null && results.length < 10) {
+                const id = match[1];
+                let rawTitle = match[2].replace(/<[^>]+>/g, '').trim(); 
+                if (rawTitle && rawTitle.length > 2 && !rawTitle.includes('Steam Workshop')) {
+                    results.push({ wid: id, title: rawTitle });
+                }
+            }
 
-      if (!details || details.result !== 1) {
-        status.textContent = `Invalid/private mod: ${wid}`;
-        return null;
-      }
+            const unique = [...new Map(results.map(item => [item.wid, item])).values()];
+            const candidates = unique.slice(0, 5);
 
-      let title = details.title || 'Unknown';
-      let desc = (details.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            if (candidates.length === 0) {
+                status.textContent = 'No mods found. Try the exact URL.';
+                return null;
+            }
 
-      let modName = null;
-      const patterns = [
-        /mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.\s]+)/i,
-        /mod\s*name:\s*([a-zA-Z0-9_\-.\s]+)/i
-      ];
-      for (const pat of patterns) {
-        const m = desc.match(pat);
-        if (m) {
-          modName = m[1].trim().replace(/\s+/g, '');
-          break;
+            showModSelection(candidates, input);
+            return null; 
+        } catch (e) {
+            status.textContent = 'Search failed: ' + e.message;
+            return null;
         }
-      }
-
-      if (!modName) {
-        modName = title.replace(/\s*\([^)]+\)/g, '').replace(/[\[\]].*?$/, '').trim();
-        modName = modName.replace(/[^a-zA-Z0-9_\-]/g, '');
-        status.textContent += ` → Fallback: "${modName}" (verify in description!)`;
-      } else {
-        status.textContent += ` → Mod ID: ${modName}`;
-      }
-
-      return { wid: wid, name: modName };
-    } catch (e) {
-      status.textContent = 'Proxy/API error: ' + e.message + ' (try manual add)';
-      console.error('Details error:', e);
-      return null;
     }
-  }
 
-  status.textContent = 'No valid input detected.';
-  return null;
+    return await getDetailsOnly(wid);
 }
 
 async function addMod() {
-  console.log('addMod called'); // ← debug log
-  const inputEl = document.getElementById('input');
-  const val = inputEl.value.trim();
-  if (!val) return;
+    const inputEl = document.getElementById('input');
+    const val = inputEl.value.trim();
+    if (!val) return;
 
-  const info = await fetchModInfo(val);
-  if (info) {
-    if (mods.some(m => m.wid === info.wid)) {
-      document.getElementById('status').textContent = 'Already added.';
-      return;
+    const info = await fetchModInfo(val);
+    if (info) {
+        if (!mods.some(m => m.wid === info.wid)) {
+            mods.push(info);
+            renderList();
+            updateOutput();
+            inputEl.value = '';
+        } else {
+            document.getElementById('status').textContent = 'Already added.';
+        }
     }
-    mods.push(info);
-    renderList();
-    updateOutput();
-    inputEl.value = '';
-  } else {
-    console.log('No info returned from fetchModInfo');
-  }
 }
 
 function removeMod(index) {
-  mods.splice(index, 1);
-  renderList();
-  updateOutput();
+    mods.splice(index, 1);
+    renderList();
+    updateOutput();
 }
 
 function renderList() {
-  const container = document.getElementById('modlist');
-  container.innerHTML = mods.length ? '<h3>Added Mods:</h3>' : '';
-  mods.forEach((m, i) => {
-    const div = document.createElement('div');
-    div.className = 'mod-item';
-    div.innerHTML = `<span><strong>${m.name}</strong> → Workshop: ${m.wid}</span>
-                     <button onclick="removeMod(${i})">Remove</button>`;
-    container.appendChild(div);
-  });
+    const container = document.getElementById('modlist');
+    container.innerHTML = mods.length ? '<h3>Added Mods:</h3>' : '';
+    mods.forEach((m, i) => {
+        const div = document.createElement('div');
+        div.className = 'mod-item';
+        div.style.marginBottom = '10px';
+        div.innerHTML = `<span><strong>${m.name}</strong> → Workshop: ${m.wid}</span>
+                         <button onclick="removeMod(${i})">Remove</button>`;
+        container.appendChild(div);
+    });
 }
 
 function updateOutput() {
-  const workshopEl = document.getElementById('workshop-line');
-  const modsEl = document.getElementById('mods-line');
-  const bothBtn = document.getElementById('copyBothBtn');
-  if (mods.length === 0) {
-    workshopEl.textContent = '';
-    modsEl.textContent = '';
-    if (bothBtn) bothBtn.style.display = 'none';
-    return;
-  }
-  const wids = mods.map(m => m.wid).join(';');
-  const names = mods.map(m => '\\' + m.name).join(';');
-  workshopEl.textContent = `WorkshopItems=${wids}`;
-  modsEl.textContent = `Mods=${names}`;
-  if (bothBtn) bothBtn.style.display = 'block';
-}
+    const workshopEl = document.getElementById('workshop-line');
+    const modsEl = document.getElementById('mods-line');
+    const bothBtn = document.getElementById('copyBothBtn');
+    
+    if (mods.length === 0) {
+        workshopEl.textContent = '';
+        modsEl.textContent = '';
+        if (bothBtn) bothBtn.style.display = 'none';
+        return;
+    }
 
-function copyWorkshop() {
-  const text = document.getElementById('workshop-line').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    alert('WorkshopItems line copied!');
-  }).catch(() => {
-    alert('Copy failed – select the text manually.');
-  });
-}
-
-function copyMods() {
-  const text = document.getElementById('mods-line').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    alert('Mods line copied!');
-  }).catch(() => {
-    alert('Copy failed – select the text manually.');
-  });
-}
-
-function copyBoth() {
-  const wids = mods.map(m => m.wid).join(';');
-  const names = mods.map(m => '\\' + m.name).join(';');
-  const text = `WorkshopItems=${wids}\nMods=${names}`;
-  navigator.clipboard.writeText(text).then(() => {
-    alert('Both lines copied together!\nPaste where needed in your .ini');
-  }).catch(() => {
-    alert('Copy failed – select manually.');
-  });
+    const wids = mods.map(m => m.wid).join(';');
+    // Build 42.13.1+ Backslash formatting
+    const names = mods.map(m => '\\' + m.name).join(';');
+    
+    workshopEl.textContent = `WorkshopItems=${wids}`;
+    modsEl.textContent = `Mods=${names}`;
+    if (bothBtn) bothBtn.style.display = 'block';
 }
 
 function showModSelection(candidates, searchInput) {
-  const status = document.getElementById('status');
-  status.innerHTML = `Multiple matches found for "${searchInput}". Choose the correct one:<br>`;
-  const list = document.createElement('div');
-  list.style.marginTop = '1rem';
-  list.style.display = 'flex';
-  list.style.flexDirection = 'column';
-  list.style.gap = '0.75rem';
-  candidates.forEach((cand, index) => {
-    const btn = document.createElement('button');
-    btn.textContent = `${index + 1}. ${cand.title} (ID: ${cand.wid})`;
-    btn.style.padding = '0.75rem';
-    btn.style.background = '#444';
-    btn.style.color = 'white';
-    btn.style.border = 'none';
-    btn.style.borderRadius = '4px';
-    btn.style.cursor = 'pointer';
-    btn.style.textAlign = 'left';
-    btn.onclick = async () => {
-      status.textContent = `Fetching details for ${cand.title}...`;
-      const info = await getDetailsOnly(cand.wid);
-      if (info) {
-        if (mods.some(m => m.wid === info.wid)) {
-          status.textContent = 'Already added.';
-          return;
-        }
-        mods.push(info);
-        renderList();
-        updateOutput();
-        status.textContent = `Added: ${info.name} (ID ${info.wid})`;
-      }
-      list.remove();
-    };
-    list.appendChild(btn);
-  });
-  status.appendChild(list);
+    const status = document.getElementById('status');
+    status.innerHTML = `<strong>Results for "${searchInput}":</strong><br>`;
+    
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-top:10px;';
+
+    candidates.forEach(cand => {
+        const btn = document.createElement('button');
+        btn.innerHTML = `<b>${cand.title}</b> (ID: ${cand.wid})`;
+        btn.style.cssText = 'text-align:left; padding:10px; cursor:pointer; background:#444; color:white; border:none; border-radius:4px;';
+        
+        btn.onclick = async () => {
+            status.textContent = `Fetching Mod ID for ${cand.title}...`;
+            const info = await getDetailsOnly(cand.wid);
+            if (info) {
+                if (!mods.some(m => m.wid === info.wid)) {
+                    mods.push(info);
+                    renderList();
+                    updateOutput();
+                    status.textContent = `Added: ${info.name}`;
+                } else {
+                    status.textContent = 'Already added.';
+                }
+            }
+            list.remove();
+        };
+        list.appendChild(btn);
+    });
+    status.appendChild(list);
 }
 
 async function getDetailsOnly(wid) {
-  try {
-    const formData = new FormData();
-    formData.append('itemcount', '1');
-    formData.append('publishedfileids[0]', wid);
-    const resp = await fetch(`${PROXY_BASE}/steam-details`, {
-      method: 'POST',
-      body: formData
-    });
-    const json = await resp.json();
-    const details = json?.response?.publishedfiledetails?.[0];
-    if (!details || details.result !== 1) return null;
-    let title = details.title || 'Unknown';
-    let desc = (details.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    let modName = null;
-    const patterns = [
-      /mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.\s]+)/i,
-      /mod\s*name:\s*([a-zA-Z0-9_\-.\s]+)/i
-    ];
-    for (const pat of patterns) {
-      const m = desc.match(pat);
-      if (m) {
-        modName = m[1].trim().replace(/\s+/g, '');
-        break;
-      }
+    try {
+        const formData = new FormData();
+        formData.append('itemcount', '1');
+        formData.append('publishedfileids[0]', wid);
+
+        const resp = await fetch(`${PROXY_BASE}/steam-details`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const json = await resp.json();
+        const details = json?.response?.publishedfiledetails?.[0];
+
+        if (!details || details.result !== 1) return null;
+
+        let title = details.title || 'Unknown';
+        let desc = (details.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+        let modName = null;
+        const patterns = [
+            /mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.\s]+)/i,
+            /mod\s*name:\s*([a-zA-Z0-9_\-.\s]+)/i
+        ];
+
+        for (const pat of patterns) {
+            const m = desc.match(pat);
+            if (m) {
+                modName = m[1].trim().split(/\s+/)[0].replace(/[^a-zA-Z0-9_\-]/g, '');
+                break;
+            }
+        }
+
+        if (!modName) {
+            modName = title.replace(/\s*\([^)]+\)/g, '').replace(/[\[\]].*?$/, '').trim();
+            modName = modName.replace(/[^a-zA-Z0-9_\-]/g, '');
+        }
+
+        return { wid: wid, name: modName };
+    } catch (e) {
+        console.error('Details Error:', e);
+        return null;
     }
-    if (!modName) {
-      modName = title.replace(/\s*\([^)]+\)/g, '').replace(/[\[\]].*?$/, '').trim();
-      modName = modName.replace(/[^a-zA-Z0-9_\-]/g, '');
-    }
-    return { wid: wid, name: modName };
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
 }
 
-// Enter key support - placed at top level
-document.getElementById('input').addEventListener('keydown', function(event) {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    addMod();
-  }
-});
+// Copy functions
+function copyBoth() {
+    const wids = mods.map(m => m.wid).join(';');
+    const names = mods.map(m => '\\' + m.name).join(';');
+    const text = `WorkshopItems=${wids}\nMods=${names}`;
+    navigator.clipboard.writeText(text).then(() => alert('Copied both lines!'));
+}
 </script>
 
 </body>
 
 
 </html>
+
 
 
 
