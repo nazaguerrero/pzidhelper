@@ -27,9 +27,7 @@
             display: flex; justify-content: space-between; align-items: center; 
             cursor: grab; border: 1px solid #333; 
         }
-        .mod-item.dragging { opacity: 0.5; border: 1px dashed var(--accent); background: #333; }
-        .mod-item strong { transition: color 0.2s; }
-        .mod-item:active strong { color: var(--accent); }
+        .mod-item.dragging { opacity: 0.8; border: 2px solid var(--accent) !important; background: #333; transform: scale(1.02); }
 
         .search-results-list { 
             position: absolute; top: 100%; left: 0; width: 100%; z-index: 1000; 
@@ -38,36 +36,26 @@
         }
         .search-item-btn { width: 100%; text-align: left; padding: 12px; background: transparent; color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; display: block; }
         .search-item-btn:hover { background: #333; }
-        .search-item-btn b { display: block; }
-        .search-item-btn small { color: #888; }
 
-        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; }
+        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; }
+        
+        .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; }
+
+        /* FIXED ANIMATION */
+        @keyframes flash-success {
+            0% { background-color: #004400; }
+            100% { background-color: #000000; }
+        }
+        .copy-flash { animation: flash-success 0.6s ease-out !important; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .duplicate-shake { animation: shake 0.4s ease-in-out; border-color: var(--danger) !important; }
+
         .manual-add { margin-top: 30px; padding-top: 20px; border-top: 1px solid #444; }
-
-        /* The glow effect for the mod you are holding */
-    .mod-item.dragging {
-    opacity: 0.8;
-    border: 2px solid var(--accent);
-    background: #333;
-    transform: scale(1.02);
-}
-
-    /* Highlight for the specific text inside the output boxes */
-    .highlight-text {
-    background-color: var(--accent);
-    color: #000;
-    font-weight: bold;
-    border-radius: 2px;
-    padding: 0 2px;
-}
-    @keyframes flash-success {
-    0% { background-color: #004400; }
-    100% { background-color: #000; }
-}
-
-.copy-flash {
-    animation: flash-success 0.8s ease-out;
-}
     </style>
 </head>
 <body>
@@ -123,7 +111,20 @@
         }
         if (copyW) copyW.onclick = () => copyText('outW');
         if (copyM) copyM.onclick = () => copyText('outM');
+
+        loadFromDisk(); // Load saved list on startup
     });
+
+    // --- STORAGE LOGIC ---
+    function saveToDisk() {
+        localStorage.setItem('pz_helper_mods', JSON.stringify(mods));
+    }
+    function loadFromDisk() {
+        const saved = localStorage.getItem('pz_helper_mods');
+        if (saved) {
+            try { mods = JSON.parse(saved); render(); } catch (e) {}
+        }
+    }
 
     async function handleAdd() {
         const input = document.getElementById('mainInput');
@@ -176,22 +177,27 @@
     function addModToList(obj) {
         if (!mods.some(m => m.wid === obj.wid)) {
             mods.push(obj);
-            document.getElementById('mainInput').value = '';
+            const mainInput = document.getElementById('mainInput');
+            mainInput.value = '';
+            mainInput.focus();
             render();
         } else {
             document.getElementById('status').textContent = "Already in list.";
-            const mainInput = document.getElementById('mainInput');
-mainInput.value = '';
-mainInput.focus();
+            const existing = Array.from(document.querySelectorAll('.mod-item')).find(el => el.dataset.wid === obj.wid);
+            if (existing) {
+                existing.classList.add('duplicate-shake');
+                setTimeout(() => existing.classList.remove('duplicate-shake'), 400);
+            }
+            document.getElementById('mainInput').value = '';
         }
     }
 
-function render() {
+    function render() {
         const list = document.getElementById('modlist');
         list.innerHTML = mods.length ? '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><h3>Added Mods:</h3><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button></div>' : '';
         
         if(document.getElementById('clrBtn')) {
-            document.getElementById('clrBtn').onclick = () => { if(confirm("Clear list?")) { mods=[]; render(); } };
+            document.getElementById('clrBtn').onclick = () => { if(confirm("Clear list?")) { mods=[]; render(); saveToDisk(); } };
         }
 
         mods.forEach((m, i) => {
@@ -206,15 +212,14 @@ function render() {
                 e.stopPropagation(); 
                 mods.splice(i, 1); 
                 render(); 
+                saveToDisk();
             };
             
-            // START DRAG: Highlight output text
             d.addEventListener('dragstart', () => {
                 d.classList.add('dragging');
                 highlightOutput(m.wid, m.name);
             });
 
-            // END DRAG: Save order and clear highlight
             d.addEventListener('dragend', () => {
                 d.classList.remove('dragging');
                 saveNewOrder();
@@ -228,86 +233,74 @@ function render() {
             const dragging = document.querySelector('.dragging');
             if (!dragging) return;
             const afterElement = getDragAfterElement(list, e.clientY);
-            if (afterElement == null) {
-                list.appendChild(dragging);
-            } else {
-                list.insertBefore(dragging, afterElement);
-            }
-            // Real-time update of output while dragging
+            if (afterElement == null) list.appendChild(dragging);
+            else list.insertBefore(dragging, afterElement);
             saveNewOrder(true); 
         });
 
         updateOut();
+        saveToDisk();
     }
 
     function highlightOutput(wid, name) {
         const outW = document.getElementById('outW');
         const outM = document.getElementById('outM');
-
-        // Wrap the dragging mod's ID/Name in a highlight span
         outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
         outM.innerHTML = outM.innerHTML.replace(`\\${name}`, `<span class="highlight-text">\\${name}</span>`);
     }
 
     function saveNewOrder(isDragging = false) {
         const currentItems = [...document.querySelectorAll('.mod-item')];
-        const newOrder = currentItems.map(item => ({
-            wid: item.dataset.wid,
-            name: item.dataset.name
-        }));
-        mods = newOrder;
+        mods = currentItems.map(item => ({ wid: item.dataset.wid, name: item.dataset.name }));
         
-        // If we are mid-drag, keep the highlight active
         if (isDragging) {
             const dragItem = document.querySelector('.dragging');
-            updateOut(); // Redraw basic text
+            updateOut(); 
             if(dragItem) highlightOutput(dragItem.dataset.wid, dragItem.dataset.name);
         } else {
-            render(); // Final redraw
+            render(); 
         }
     }
 
-    // Determine which item the mouse is currently over
     function getDragAfterElement(container, y) {
         const draggableElements = [...container.querySelectorAll('.mod-item:not(.dragging)')];
-
         return draggableElements.reduce((closest, child) => {
             const box = child.getBoundingClientRect();
             const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
-            }
+            if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
+            else return closest;
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
     function updateOut() {
-        // Use innerHTML instead of textContent so our highlight spans work
         const wids = mods.map(m => m.wid).join(';');
         const names = mods.map(m => '\\' + m.name).join(';');
-        
         document.getElementById('outW').innerHTML = mods.length ? `WorkshopItems=${wids}` : '';
         document.getElementById('outM').innerHTML = mods.length ? `Mods=${names}` : '';
     }
 
     function handleManual() {
-        const w = document.getElementById('manWID').value.trim();
-        const n = document.getElementById('manMID').value.trim();
-        if (w && n) addModToList({wid:w, name:n});
+        const wEl = document.getElementById('manWID');
+        const nEl = document.getElementById('manMID');
+        const w = wEl.value.trim();
+        const n = nEl.value.trim();
+        if (w && n) {
+            addModToList({wid:w, name:n});
+            wEl.value = ''; nEl.value = '';
+        }
     }
 
-function copyText(id) {
-    const el = document.getElementById(id);
-    const t = el.innerText; // Use innerText to avoid copying HTML tags
-    if (t) {
-        navigator.clipboard.writeText(t).then(() => {
-            el.classList.remove('copy-flash'); // Reset animation
-            void el.offsetWidth;               // Trigger reflow
-            el.classList.add('copy-flash');    // Start animation
-        });
+    function copyText(id) {
+        const el = document.getElementById(id);
+        const t = el.innerText; 
+        if (t) {
+            navigator.clipboard.writeText(t).then(() => {
+                el.classList.remove('copy-flash');
+                void el.offsetWidth; // Force reflow to restart animation
+                el.classList.add('copy-flash');
+            });
+        }
     }
-}
 
     function showResults(data) {
         const container = document.getElementById('input-container');
@@ -338,5 +331,3 @@ function copyText(id) {
 </script>
 </body>
 </html>
-
-
