@@ -56,6 +56,13 @@
         .duplicate-shake { animation: shake 0.4s ease-in-out; border-color: var(--danger) !important; }
 
         .manual-add { margin-top: 30px; padding-top: 20px; border-top: 1px solid #444; }
+
+        .mod-item:hover {
+    border-color: var(--accent);
+    background: #2a2a2a;
+    transition: all 0.2s ease;
+}
+        
     </style>
 </head>
 <body>
@@ -212,11 +219,19 @@
 
     function render() {
         const list = document.getElementById('modlist');
-        list.innerHTML = mods.length ? '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><h3>Added Mods:</h3><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button></div>' : '';
+        list.innerHTML = mods.length ? `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <h3>Added Mods (${mods.length}):</h3>
+    <button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>
+</div>` : '';
         
         if(document.getElementById('clrBtn')) {
-            document.getElementById('clrBtn').onclick = () => { if(confirm("Clear list?")) { mods=[]; render(); saveToDisk(); } };
-        }
+            document.getElementById('clrBtn').onclick = () => { 
+    if(confirm("This will permanently delete your saved list. Are you sure?")) { 
+        mods=[]; 
+        localStorage.removeItem('pz_helper_mods'); // Wipe it from memory too
+        render(); 
+    } 
+};
 
         mods.forEach((m, i) => {
             const d = document.createElement('div');
@@ -349,4 +364,5 @@
 </script>
 </body>
 </html>
+
 
