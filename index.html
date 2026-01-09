@@ -8,19 +8,28 @@
         :root { 
             --bg: #111; --text: #eee; --accent: #ff6600; --card: #222; 
             --btn: #444; --btn-hover: #666; --danger: #900; --success: #006600; --output: #0f0; 
+            --warning: #ffcc00;
         }
         * { box-sizing: border-box; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 1rem; line-height: 1.5; }
         .container { max-width: 800px; margin: 0 auto; }
-        h1 { color: var(--accent); text-align: center; margin-bottom: 1.5rem; }
+        h1 { color: var(--accent); text-align: center; margin-bottom: 0.5rem; }
         
+        /* Version Toggle Styles */
+        .version-toggle {
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            margin-bottom: 20px; background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333;
+        }
+        .v-btn { background: #333; color: #888; border: 1px solid #444; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .v-btn.active { background: var(--accent); color: #000; border-color: #fff; }
+
         #input-container { position: relative; display: flex; gap: 10px; margin-bottom: 10px; }
         input[type="text"] { flex: 1; padding: 12px; background: var(--card); color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 1rem; }
         
         button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--btn); color: #fff; font-size: 1rem; transition: background 0.2s; }
         button:hover { background: var(--btn-hover); }
         
-        #status { color: #ffcc00; margin-bottom: 15px; min-height: 22px; font-size: 0.9rem; }
+        #status { color: var(--warning); margin-bottom: 15px; min-height: 22px; font-size: 0.9rem; font-weight: bold; text-align: center;}
         
         .mod-item { 
             background: var(--card); padding: 12px; margin: 8px 0; border-radius: 6px; 
@@ -30,6 +39,8 @@
         .mod-item:hover { border-color: var(--accent); background: #2a2a2a; }
         .mod-item.dragging { opacity: 0.8; border: 2px solid var(--accent) !important; background: #333; transform: scale(1.02); }
 
+        .edit-input { background: #000; color: var(--output); border: 1px solid var(--accent); padding: 4px; font-family: monospace; width: 250px; font-size: 1rem; border-radius: 4px; }
+
         .search-results-list { 
             position: absolute; top: 100%; left: 0; width: 100%; z-index: 1000; 
             background: #222; border: 1px solid var(--accent); border-radius: 0 0 4px 4px;
@@ -38,29 +49,24 @@
         .search-item-btn { width: 100%; text-align: left; padding: 12px; background: transparent; color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; display: block; }
         .search-item-btn:hover { background: #333; }
 
-        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; }
+        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; min-height: 50px;}
         .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; }
 
-        @keyframes flash-success {
-            0% { background-color: #004400; }
-            100% { background-color: #000000; }
-        }
+        @keyframes flash-success { 0% { background-color: #004400; } 100% { background-color: #000000; } }
         .copy-flash { animation: flash-success 0.6s ease-out !important; }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
-        }
-        .duplicate-shake { animation: shake 0.4s ease-in-out; border-color: var(--danger) !important; }
-
         .manual-add { margin-top: 30px; padding-top: 20px; border-top: 1px solid #444; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Project Zomboid B42 ID Helper</h1>
+    <h1>PZ B42 ID Helper Pro</h1>
+
+    <div class="version-toggle">
+        <span>Format for:</span>
+        <button id="v41" class="v-btn">B41 (Legacy)</button>
+        <button id="v42" class="v-btn active">B42 (Backslash \)</button>
+    </div>
     
     <div id="input-container">
         <input type="text" id="mainInput" placeholder="Workshop ID, URL, or Mod Name..." />
@@ -73,7 +79,7 @@
         <h3>Manual Add</h3>
         <div style="display:flex; gap:10px;">
             <input type="text" id="manWID" placeholder="Workshop ID" />
-            <input type="text" id="manMID" placeholder="Mod ID" />
+            <input type="text" id="manMID" placeholder="Mod ID (use ; for multiple)" />
             <button id="manBtn">Add</button>
         </div>
     </div>
@@ -95,38 +101,44 @@
 (function() {
     const PROXY = 'https://pz-mod-proxy.nazaguerrero.workers.dev';
     let mods = [];
+    let isB42 = true; 
 
     document.addEventListener('DOMContentLoaded', () => {
         loadFromDisk(); 
 
+        const btn41 = document.getElementById('v41');
+        const btn42 = document.getElementById('v42');
+
+        btn41.onclick = () => { isB42 = false; updateToggleUI(); };
+        btn42.onclick = () => { isB42 = true; updateToggleUI(); };
+
+        function updateToggleUI() {
+            btn41.classList.toggle('active', !isB42);
+            btn42.classList.toggle('active', isB42);
+            render(); // Re-render to update leading slashes and list
+        }
+
         const addBtn = document.getElementById('addBtn');
         const manBtn = document.getElementById('manBtn');
         const mainInput = document.getElementById('mainInput');
-        const copyW = document.getElementById('copyW');
-        const copyM = document.getElementById('copyM');
-
+        
         if (addBtn) addBtn.onclick = handleAdd;
         if (manBtn) manBtn.onclick = handleManual;
-        if (mainInput) {
-            mainInput.onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
-        }
-        if (copyW) copyW.onclick = () => copyText('outW');
-        if (copyM) copyM.onclick = () => copyText('outM');
+        if (mainInput) mainInput.onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
+        
+        document.getElementById('copyW').onclick = () => copyText('outW');
+        document.getElementById('copyM').onclick = () => copyText('outM');
         
         render(); 
     });
 
     function saveToDisk() {
-        try {
-            localStorage.setItem('pz_helper_mods', JSON.stringify(mods));
-        } catch (e) { console.error("Save failed:", e); }
+        localStorage.setItem('pz_helper_pro_v3', JSON.stringify(mods));
     }
 
     function loadFromDisk() {
-        try {
-            const saved = localStorage.getItem('pz_helper_mods');
-            if (saved) { mods = JSON.parse(saved); }
-        } catch (e) { mods = []; }
+        const saved = localStorage.getItem('pz_helper_pro_v3');
+        if (saved) { try { mods = JSON.parse(saved); } catch (e) { mods = []; } }
     }
 
     async function handleAdd() {
@@ -134,10 +146,7 @@
         const val = input.value.trim();
         if (!val) return;
         const info = await fetchInfo(val);
-        if (info) {
-            addModToList(info);
-            input.value = ''; // Clear input on success
-        }
+        if (info) { addModToList(info); input.value = ''; }
     }
 
     async function fetchInfo(val) {
@@ -146,7 +155,6 @@
         let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
 
         if (!wid) {
-            status.textContent = "Searching Steam...";
             try {
                 const p = new URLSearchParams({ appid: '108600', searchtext: val, section: 'readytouseitems', browsesort: 'trend', p: '1' });
                 const r = await fetch(`${PROXY}/steam-search?${p}`);
@@ -173,112 +181,143 @@
             const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
             const j = await r.json();
             const d = j?.response?.publishedfiledetails?.[0];
-            if (!d || d.result !== 1) {
-                document.getElementById('status').textContent = "Mod not found on Steam.";
-                return null;
+            if (!d || d.result !== 1) return null;
+
+            const description = d.description || "";
+            const idPattern = /mod\s*id/gi;
+            const matches = description.match(idPattern) || [];
+            const firstID = description.match(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
+            
+            if (matches.length > 1) {
+                document.getElementById('status').textContent = "⚠️ " + matches.length + " Mod IDs detected! Use ✎ to add others.";
+            } else {
+                document.getElementById('status').textContent = "Added: " + firstID;
             }
-            const name = d.description.match(/mod\s*(?:id|ID|i\.?d\.?):\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            return { wid: id, name: name };
-        } catch (e) { 
-            document.getElementById('status').textContent = "Error fetching details.";
-            return null; 
-        }
+            return { wid: id, name: firstID };
+        } catch (e) { return null; }
     }
 
     function addModToList(obj) {
-        const exists = mods.some(m => String(m.wid) === String(obj.wid));
-        if (!exists) {
+        if (!mods.some(m => String(m.wid) === String(obj.wid))) {
             mods.push(obj);
-            document.getElementById('status').textContent = "Added: " + obj.name;
             render();
             saveToDisk();
         } else {
             document.getElementById('status').textContent = "Already in list.";
-            const items = document.querySelectorAll('.mod-item');
-            items.forEach(el => {
-                if (el.dataset.wid === obj.wid) {
-                    el.classList.add('duplicate-shake');
-                    setTimeout(() => el.classList.remove('duplicate-shake'), 400);
-                }
-            });
         }
     }
 
     function render() {
         const list = document.getElementById('modlist');
-        list.innerHTML = ''; // Full clear
+        list.innerHTML = '';
 
         if (mods.length > 0) {
-            // Header
             const header = document.createElement('div');
             header.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;";
             header.innerHTML = `<h3>Added Mods (${mods.length}):</h3><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
             list.appendChild(header);
 
             document.getElementById('clrBtn').onclick = () => {
-                if(confirm("Wipe the entire list?")) {
-                    mods = [];
-                    localStorage.removeItem('pz_helper_mods');
-                    render();
-                }
+                if(confirm("Wipe the entire list?")) { mods = []; saveToDisk(); render(); }
             };
 
-            // Items
             mods.forEach((m, i) => {
                 const d = document.createElement('div');
                 d.className = 'mod-item';
                 d.draggable = true;
                 d.dataset.wid = m.wid;
                 d.dataset.name = m.name;
-                d.innerHTML = `<span>☰ <b>${m.name}</b> (${m.wid})</span><button class="rmv" style="background:var(--danger); padding:4px 8px;">X</button>`;
                 
+                d.innerHTML = `
+                    <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
+                    <div style="display:flex; gap:5px;">
+                        <button class="edit-btn" style="background:var(--btn); padding:4px 10px;">✎</button>
+                        <button class="rmv" style="background:var(--danger); padding:4px 10px;">X</button>
+                    </div>
+                `;
+                
+                d.querySelector('.edit-btn').onclick = (e) => {
+                    e.stopPropagation();
+                    const label = d.querySelector('.mod-id-label');
+                    const input = document.createElement('input');
+                    input.className = 'edit-input';
+                    input.value = m.name;
+                    input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
+                    input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
+                    label.replaceWith(input);
+                    input.focus();
+                };
+
                 d.querySelector('.rmv').onclick = (e) => {
                     e.stopPropagation();
                     mods.splice(i, 1);
-                    render();
                     saveToDisk();
+                    render();
                 };
-
-                d.addEventListener('dragstart', () => {
+                
+                d.ondragstart = () => {
                     d.classList.add('dragging');
                     highlightOutput(m.wid, m.name);
-                });
-
-                d.addEventListener('dragend', () => {
+                };
+                
+                d.ondragend = () => {
                     d.classList.remove('dragging');
-                    saveNewOrder();
-                });
+                    render();
+                };
 
                 list.appendChild(d);
             });
         }
-
         updateOut();
     }
 
     function highlightOutput(wid, name) {
+        updateOut(); 
         const outW = document.getElementById('outW');
         const outM = document.getElementById('outM');
+
         outW.innerHTML = outW.innerHTML.replace(wid, `<span class="highlight-text">${wid}</span>`);
-        outM.innerHTML = outM.innerHTML.replace(`\\${name}`, `<span class="highlight-text">\\${name}</span>`);
+        
+        const parts = name.split(';');
+        let mContent = outM.innerHTML;
+        parts.forEach(p => {
+            const clean = p.trim();
+            if(clean) {
+                const searchStr = isB42 ? `\\${clean}` : clean;
+                // Double escape for regex since backslash is a special char
+                const escaped = searchStr.replace(/\\/g, '\\\\');
+                const reg = new RegExp(`(${escaped})`, 'g');
+                mContent = mContent.replace(reg, `<span class="highlight-text">$1</span>`);
+            }
+        });
+        outM.innerHTML = mContent;
     }
 
-    function saveNewOrder(isDragging = false) {
+    function saveNewOrder() {
         const currentItems = [...document.querySelectorAll('.mod-item')];
-        mods = currentItems.map(item => ({
-            wid: item.dataset.wid,
-            name: item.dataset.name
-        }));
-        
-        if (isDragging) {
-            const dragItem = document.querySelector('.dragging');
-            updateOut(); 
-            if(dragItem) highlightOutput(dragItem.dataset.wid, dragItem.dataset.name);
-        } else {
-            render();
-            saveToDisk();
-        }
+        const newMods = [];
+        currentItems.forEach(item => {
+            const wid = item.dataset.wid;
+            const existingMod = mods.find(m => m.wid === wid);
+            if(existingMod) newMods.push(existingMod);
+        });
+        mods = newMods;
+        saveToDisk();
+        updateOut();
     }
+
+    document.getElementById('modlist').addEventListener('dragover', e => {
+        e.preventDefault();
+        const dragging = document.querySelector('.dragging');
+        if (!dragging) return;
+        const list = document.getElementById('modlist');
+        const afterElement = getDragAfterElement(list, e.clientY);
+        if (afterElement == null) list.appendChild(dragging);
+        else list.insertBefore(dragging, afterElement);
+        
+        saveNewOrder();
+        highlightOutput(dragging.dataset.wid, dragging.querySelector('.mod-id-label').innerText);
+    });
 
     function getDragAfterElement(container, y) {
         const draggableElements = [...container.querySelectorAll('.mod-item:not(.dragging)')];
@@ -290,23 +329,19 @@
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
-    // Dragover container logic
-    document.getElementById('modlist').addEventListener('dragover', e => {
-        e.preventDefault();
-        const list = document.getElementById('modlist');
-        const dragging = document.querySelector('.dragging');
-        if (!dragging) return;
-        const afterElement = getDragAfterElement(list, e.clientY);
-        if (afterElement == null) list.appendChild(dragging);
-        else list.insertBefore(dragging, afterElement);
-        saveNewOrder(true);
-    });
-
     function updateOut() {
+        const outW = document.getElementById('outW');
+        const outM = document.getElementById('outM');
+        if (!mods.length) { outW.innerHTML = ''; outM.innerHTML = ''; return; }
+
         const wids = mods.map(m => m.wid).join(';');
-        const names = mods.map(m => '\\' + m.name).join(';');
-        document.getElementById('outW').innerHTML = mods.length ? `WorkshopItems=${wids}` : '';
-        document.getElementById('outM').innerHTML = mods.length ? `Mods=${names}` : '';
+        const names = mods.map(m => {
+            const subMods = m.name.split(';');
+            return subMods.map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
+        }).join(';');
+
+        outW.innerHTML = `WorkshopItems=${wids}`;
+        outM.innerHTML = `Mods=${names}`;
     }
 
     function handleManual() {
@@ -323,9 +358,8 @@
         const el = document.getElementById(id);
         if (el && el.innerText) {
             navigator.clipboard.writeText(el.innerText).then(() => {
-                el.classList.remove('copy-flash');
-                void el.offsetWidth;
                 el.classList.add('copy-flash');
+                setTimeout(() => el.classList.remove('copy-flash'), 600);
             });
         }
     }
@@ -336,11 +370,7 @@
         if (old) old.remove();
         const list = document.createElement('div');
         list.className = 'search-results-list';
-        const close = document.createElement('div');
-        close.innerHTML = '<span>Results</span><button style="background:none; border:none; color:#900; float:right; cursor:pointer; font-weight:bold;">✕</button>';
-        close.style.cssText = "padding:10px; background:#333; border-bottom:1px solid #444;";
-        close.onclick = () => list.remove();
-        list.appendChild(close);
+        list.innerHTML = `<div style="padding:10px; background:#333; border-bottom:1px solid #444;">Results <button onclick="this.parentElement.parentElement.remove()" style="float:right; background:none; border:none; color:red; cursor:pointer;">✕</button></div>`;
 
         data.forEach(item => {
             const b = document.createElement('button');
