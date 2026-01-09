@@ -112,32 +112,55 @@
     }
 
     async function fetchInfo(val) {
-        const status = document.getElementById('status');
-        status.textContent = "Processing...";
-        let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
-        if (!wid) {
-            try {
-                const p = new URLSearchParams({ appid: '108600', searchtext: val, section: 'readytouseitems', browsesort: 'trend', p: '1' });
-                const r = await fetch(`${PROXY}/steam-search?${p}`);
-                const t = await r.text();
-                const results = [];
-                const containerReg = /<div class="workshopItem">([\s\S]*?)<\/div><\/div>/gi;
-                let match;
-                while ((match = containerReg.exec(t)) !== null && results.length < 5) {
-                    const block = match[1];
-                    const idMatch = block.match(/id=(\d+)/);
-                    const titleMatch = block.match(/workshopItemTitle[^>]*>([\s\S]*?)<\/div>/i);
-                    if (idMatch && titleMatch) {
-                        results.push({ wid: idMatch[1], title: titleMatch[1].replace(/<[^>]+>/g, '').trim() });
-                    }
-                }
-                if (results.length === 0) { status.textContent = "No results found."; return null; }
-                showResults(results);
+    const status = document.getElementById('status');
+    status.textContent = "Searching Steam...";
+    
+    // Check if it's already a direct ID or URL first
+    let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
+    
+    if (!wid) {
+        try {
+            const p = new URLSearchParams({
+                appid: '108600', // Project Zomboid
+                searchtext: val,
+                section: 'readytouseitems',
+                browsesort: 'trend',
+                p: '1'
+            });
+
+            const r = await fetch(`${PROXY}/steam-search?${p}`);
+            const t = await r.text();
+            
+            const results = [];
+            // Updated Regex for 2026 Steam HTML structure
+            // Looks for the link containing the ID and the text nearby
+            const searchRegex = /sharedfiles\/filedetails\/\?id=(\d+)[\s\S]*?workshopItemTitle[^>]*>([\s\S]*?)<\/div>/gi;
+            
+            let m;
+            while ((m = searchRegex.exec(t)) !== null && results.length < 5) {
+                results.push({
+                    wid: m[1],
+                    title: m[2].replace(/<[^>]+>/g, '').trim() // Clean HTML tags from title
+                });
+            }
+
+            if (results.length === 0) {
+                status.textContent = "❌ No results for '" + val + "'. Try just one word.";
+                console.log("Search HTML snippet:", t.substring(0, 500)); // Debugging
                 return null;
-            } catch (e) { status.textContent = "Search failed."; return null; }
+            }
+
+            showResults(results);
+            status.textContent = "Select a result below:";
+            return null;
+        } catch (e) {
+            status.textContent = "⚠️ Connection error. Try again.";
+            console.error(e);
+            return null;
         }
-        return await getDetails(wid);
     }
+    return await getDetails(wid);
+}
 
     async function getDetails(id) {
         try {
@@ -276,4 +299,5 @@
 })();
 </script>
 </body>
+
 </html>
