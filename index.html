@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PZ B42.13 IDhelper Pro</title>
+    <title>PZ B42 ID Helper Pro</title>
     <style>
         :root { 
             --bg: #111; --text: #eee; --accent: #ff6600; --card: #222; 
@@ -19,41 +19,35 @@
             display: flex; justify-content: center; align-items: center; gap: 10px;
             margin-bottom: 20px; background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333;
         }
-        .v-btn { background: #333; color: #888; border: 1px solid #444; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .v-btn { background: #333; color: #888; border: 1px solid #444; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .v-btn.active { background: var(--accent); color: #000; border-color: #fff; }
 
         #input-container { position: relative; display: flex; gap: 10px; margin-bottom: 10px; }
-        input[type="text"] { flex: 1; padding: 12px; background: var(--card); color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 1rem; }
+        input[type="text"] { flex: 1; padding: 12px; background: var(--card); color: #fff; border: 1px solid #444; border-radius: 4px; }
         
-        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--btn); color: #fff; font-size: 1rem; transition: background 0.2s; }
+        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--btn); color: #fff; transition: 0.2s; }
         button:hover { background: var(--btn-hover); }
         
-        #status { color: var(--warning); margin-bottom: 15px; min-height: 22px; font-size: 0.9rem; font-weight: bold; text-align: center;}
+        #status { color: var(--warning); margin-bottom: 15px; min-height: 22px; text-align: center; font-weight: bold;}
         
         .mod-item { 
             background: var(--card); padding: 12px; margin: 8px 0; border-radius: 6px; 
             display: flex; justify-content: space-between; align-items: center; 
-            cursor: grab; border: 1px solid #333; transition: all 0.2s ease;
+            border: 1px solid #333; cursor: grab;
         }
-        .mod-item:hover { border-color: var(--accent); background: #2a2a2a; }
-        .mod-item.dragging { opacity: 0.8; border: 2px solid var(--accent) !important; background: #333; transform: scale(1.02); }
-
-        .edit-input { background: #000; color: var(--output); border: 1px solid var(--accent); padding: 4px; font-family: monospace; width: 250px; font-size: 1rem; border-radius: 4px; }
+        .mod-item.dragging { opacity: 0.5; border: 1px dashed var(--accent); }
 
         .search-results-list { 
             position: absolute; top: 100%; left: 0; width: 100%; z-index: 1000; 
-            background: #222; border: 1px solid var(--accent); border-radius: 0 0 4px 4px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.7); max-height: 300px; overflow-y: auto;
+            background: #222; border: 1px solid var(--accent); max-height: 300px; overflow-y: auto;
         }
-        .search-item-btn { width: 100%; text-align: left; padding: 12px; background: transparent; color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; display: block; }
+        .search-item-btn { width: 100%; text-align: left; padding: 12px; background: transparent; color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; }
         .search-item-btn:hover { background: #333; }
 
-        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; font-family: monospace; transition: background 0.3s; min-height: 50px;}
-        .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; }
+        pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; white-space: pre-wrap; border: 1px solid #333; }
+        .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; padding: 0 2px; }
 
-        @keyframes flash-success { 0% { background-color: #004400; } 100% { background-color: #000000; } }
-        .copy-flash { animation: flash-success 0.6s ease-out !important; }
-        .manual-add { margin-top: 30px; padding-top: 20px; border-top: 1px solid #444; }
+        .debug-log { margin-top: 40px; font-size: 12px; color: #666; background: #000; padding: 10px; border-radius: 4px; max-height: 150px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -62,7 +56,6 @@
     <h1>PZ B42 ID Helper Pro</h1>
 
     <div class="version-toggle">
-        <span>Format for:</span>
         <button id="v41" class="v-btn">B41 (Legacy)</button>
         <button id="v42" class="v-btn active">B42 (Backslash \)</button>
     </div>
@@ -74,16 +67,7 @@
     <div id="status">Ready.</div>
     <div id="modlist"></div>
 
-    <div class="manual-add">
-        <h3>Manual Add</h3>
-        <div style="display:flex; gap:10px;">
-            <input type="text" id="manWID" placeholder="Workshop ID" />
-            <input type="text" id="manMID" placeholder="Mod ID (use ; for multiple)" />
-            <button id="manBtn">Add</button>
-        </div>
-    </div>
-
-    <div style="margin-top: 30px;">
+    <div style="margin-top: 20px; border-top: 1px solid #333; padding-top: 20px;">
         <strong>WorkshopItems=</strong>
         <pre id="outW"></pre>
         <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems</button>
@@ -94,6 +78,8 @@
             <button id="copyM" style="background:var(--success)">📋 Copy Mods</button>
         </div>
     </div>
+
+    <div class="debug-log" id="debugLog">Console: Waiting for input...</div>
 </div>
 
 <script>
@@ -102,57 +88,38 @@
     let mods = [];
     let isB42 = true; 
 
-    document.addEventListener('DOMContentLoaded', () => {
-        loadFromDisk(); 
-
-        const btn41 = document.getElementById('v41');
-        const btn42 = document.getElementById('v42');
-
-        btn41.onclick = () => { isB42 = false; updateToggleUI(); };
-        btn42.onclick = () => { isB42 = true; updateToggleUI(); };
-
-        function updateToggleUI() {
-            btn41.classList.toggle('active', !isB42);
-            btn42.classList.toggle('active', isB42);
-            render();
-        }
-
-        const addBtn = document.getElementById('addBtn');
-        const manBtn = document.getElementById('manBtn');
-        const mainInput = document.getElementById('mainInput');
-        
-        if (addBtn) addBtn.onclick = handleAdd;
-        if (manBtn) manBtn.onclick = handleManual;
-        if (mainInput) mainInput.onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
-        
-        document.getElementById('copyW').onclick = () => copyText('outW');
-        document.getElementById('copyM').onclick = () => copyText('outM');
-        
-        render(); 
-    });
-
-    function saveToDisk() {
-        localStorage.setItem('pz_helper_pro_v3', JSON.stringify(mods));
+    function log(msg) {
+        const d = document.getElementById('debugLog');
+        d.innerHTML += `<br>> ${msg}`;
+        d.scrollTop = d.scrollHeight;
     }
 
-    function loadFromDisk() {
-        const saved = localStorage.getItem('pz_helper_pro_v3');
-        if (saved) { try { mods = JSON.parse(saved); } catch (e) { mods = []; } }
+    function save() { localStorage.setItem('pz_ids_v4', JSON.stringify(mods)); }
+    function load() { 
+        const s = localStorage.getItem('pz_ids_v4');
+        if (s) try { mods = JSON.parse(s); } catch(e) { mods = []; }
     }
 
-    async function handleAdd() {
-        const input = document.getElementById('mainInput');
-        const val = input.value.trim();
-        if (!val) return;
-        const info = await fetchInfo(val);
-        if (info) { addModToList(info); input.value = ''; }
-    }
+    async function getDetails(id) {
+        log(`Fetching details for ${id}...`);
+        try {
+            const fd = new FormData();
+            fd.append('itemcount', '1');
+            fd.append('publishedfileids[0]', id);
+            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+            const j = await r.json();
+            const d = j?.response?.publishedfiledetails?.[0];
+            
+            if (!d || d.result !== 1) {
+                log(`Error: Mod ${id} not found or hidden.`);
+                return null;
+            }
 
-    async function fetchInfo(val) {
-        const status = document.getElementById('status');
-        status.textContent = "Processing...";
-        let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
-
-        if (!wid) {
-            try {
-                const p
+            const desc = d.description || "";
+            const modIdMatch = desc.match(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/i);
+            const foundId = modIdMatch ? modIdMatch[1] : d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
+            
+            log(`Success: Found ModID "${foundId}"`);
+            return { wid: id, name: foundId };
+        } catch (e) {
+            log(`Fetch
