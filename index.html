@@ -252,57 +252,57 @@ async function fetchModInfo(input) {
     console.log('Search response length:', text.length);
     console.log('First 800 chars:', text.substring(0, 800));
 
-// Extract potential mod links + titles (handles relative URLs + nested HTML)
+// Extract potential mod links + titles - improved for Steam's current structure
 const results = [];
 const linkRegex = /href=["'](?:https?:\/\/steamcommunity\.com)?\/sharedfiles\/filedetails\/\?id=(\d+)["']/gi;
 
-// First collect all unique IDs from hrefs
-const seenIds = new Set();
 let idMatch;
 while ((idMatch = linkRegex.exec(text)) !== null) {
   const id = idMatch[1];
-  if (seenIds.has(id)) continue;
-  seenIds.add(id);
+  const start = idMatch.index - 300; // look back for context
+  const end = text.indexOf('</a>', idMatch.index + id.length + 50) + 4;
+  if (end === -1 || start < 0) continue;
 
-  // Find the title for this ID (look forward/backward in HTML for <a>...</a>)
-  // This is approximate but effective for Steam's structure
-  const startPos = idMatch.index;
-  const endPos = text.indexOf('</a>', startPos);
-  if (endPos === -1) continue;
+  const anchorArea = text.substring(start, end);
+  // Extract visible title text (strip tags, clean)
+  let title = anchorArea
+    .replace(/<[^>]+>/g, ' ')          // remove HTML tags
+    .replace(/\s+/g, ' ')              // normalize spaces
+    .replace(/&[^;]+;/g, ' ')          // decode entities
+    .trim();
 
-  const anchorSnippet = text.substring(startPos - 200, endPos + 4); // grab ~200 chars before + </a>
-  const titleMatch = anchorSnippet.match(/>([^<]*(?:<[^>]+>[^<]*)*)<\/a>/);
-  let title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : 'Unknown Title';
-
-  // Clean title
-  title = title.replace(/&[^;]+;/g, ' ').trim();
+  // Trim to likely title part (after any preceding junk)
+  title = title.split(' ').slice(-10).join(' '); // rough heuristic: last words are often title
 
   // Skip junk
-  if (!title || title.length < 3 ||
+  if (!title || title.length < 5 ||
       id === '2872282653' ||
       title.toLowerCase().includes('policy') ||
       title.toLowerCase().includes('guideline') ||
-      title.toLowerCase().includes('welcome')) {
+      title.toLowerCase().includes('welcome') ||
+      title.includes('Steam Workshop')) {
     continue;
   }
 
   results.push({ wid: id, title });
 }
 
-// Limit to first 5 unique
-const candidates = results.slice(0, 5);
+// Dedupe and limit
+const unique = [...new Map(results.map(item => [item.wid, item])).values()];
+const candidates = unique.slice(0, 5);
 
-      if (candidates.length === 0) {
-        status.textContent = 'No valid mod results found. Try a more specific name, full URL, or numeric ID.';
-        return null;
-      }
+if (candidates.length === 0) {
+  status.textContent = 'No valid mod results parsed from Steam (page structure changed?). Try direct ID/URL.';
+  console.log('No candidates - full text length:', text.length);
+  return null;
+}
 
-      showModSelection(candidates, input);
-      return null; // Wait for user choice
-    } catch (e) {
-      status.textContent = 'Search failed: ' + e.message;
-      console.error('Search error:', e);
-      return null;
+// Debug: log what we found
+console.log('Found candidates:', candidates);
+
+// Show selection
+showModSelection(candidates, input);
+return null;
     }
   }
 
@@ -536,6 +536,7 @@ document.getElementById('input').addEventListener('keydown', function(event) {
 
 
 </html>
+
 
 
 
