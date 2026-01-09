@@ -1,20 +1,30 @@
-# Project Zomboid B42.13.1 Mod Grabber
+# Project Zomboid B42 Mod Grabber
 
-A simple, single-file browser tool to help server admins quickly build the `WorkshopItems` and `Mods` lines for Project Zomboid multiplayer servers (Build 42.13.1 and later).
+A simple, single-file **HTML + JavaScript tool** that helps Project Zomboid server admins grab **Workshop IDs** and **Mod IDs** from Steam URLs, IDs, or mod names. It auto-adds the leading `\` for **B42.13.1+** compatibility and generates ready-to-paste lines for `servertest.ini` / `server.ini`.
 
-Just paste Workshop IDs, full Steam URLs, or mod names — the tool tries to auto-detect the correct Mod ID (with fallback/manual entry when Steam API blocks CORS).
+**Live Demo:** [https://yourusername.github.io/pz-mod-grabber/](https://yourusername.github.io/pz-mod-grabber/) (replace with your GitHub Pages link after enabling)
 
-**Features**
-- Auto-adds leading `\` to Mod IDs (required for B42.13+ servers)
-- Handles Workshop numeric ID, full Steam URL, or mod name search
-- Manual entry mode for when browser CORS blocks Steam API
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/yourusername/pz-mod-grabber?style=social)](https://github.com/yourusername/pz-mod-grabber)
+[![GitHub issues](https://img.shields.io/github/issues/yourusername/pz-mod-grabber)](https://github.com/yourusername/pz-mod-grabber/issues)
+
+## Features
+
+- Add mods by **Workshop ID**, **full Steam URL**, or **mod name** (auto-searches Steam Workshop)
+- Robust **Mod ID** extraction from description (with fallback to sanitized title)
+- **Manual add** mode for cases where Steam API fetch fails (CORS issues)
+- Auto-adds **leading `\`** to Mod IDs for **B42.13.1+** compatibility
 - Responsive design (mobile-friendly)
-- One-click copy of ready-to-paste server.ini lines
+- Copy-ready **WorkshopItems** and **Mods** lines
+
+## Demo
+
+![Screenshot of the tool](https://via.placeholder.com/800x500.png?text=Tool+Screenshot)  
+*(Replace with actual screenshot – e.g., upload a PNG to the repo and link it)*
 
 ## How to Use
 
-1. Download `pz-mod-grabber.html`
-2. Open it in any modern browser (Chrome, Firefox, Edge…)
-3. Paste mod info and click "Add Mod"
-4. When done → click "Copy both lines to clipboard"
-5. Paste directly into your `servertest.ini` or custom server config
+1. **Open the tool** in any browser (works offline after first load)
+2. Paste a **Workshop ID**, **Steam URL**, or **mod name** → click **Add Mod**
+3. Repeat for all mods
+4. Click **Copy both lines** → paste into your `servertest.ini` or `server.ini`:
