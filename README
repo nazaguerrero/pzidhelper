@@ -1,0 +1,20 @@
+# Project Zomboid B42.13.1 Mod Grabber
+
+A simple, single-file browser tool to help server admins quickly build the `WorkshopItems` and `Mods` lines for Project Zomboid multiplayer servers (Build 42.13.1 and later).
+
+Just paste Workshop IDs, full Steam URLs, or mod names — the tool tries to auto-detect the correct Mod ID (with fallback/manual entry when Steam API blocks CORS).
+
+**Features**
+- Auto-adds leading `\` to Mod IDs (required for B42.13+ servers)
+- Handles Workshop numeric ID, full Steam URL, or mod name search
+- Manual entry mode for when browser CORS blocks Steam API
+- Responsive design (mobile-friendly)
+- One-click copy of ready-to-paste server.ini lines
+
+## How to Use
+
+1. Download `pz-mod-grabber.html`
+2. Open it in any modern browser (Chrome, Firefox, Edge…)
+3. Paste mod info and click "Add Mod"
+4. When done → click "Copy both lines to clipboard"
+5. Paste directly into your `servertest.ini` or custom server config
