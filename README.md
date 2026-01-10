@@ -1,6 +1,7 @@
 # 🧟 Project Zomboid B42 ID Helper (Alpha)
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live_Now-green?style=for-the-badge&logo=vercel)](https://nazaguerrero.github.io/pzidhelper//)
+[![Version](https://img.shields.io/badge/Version-Alpha_1.0-orange)](https://github.com/YOUR_USERNAME/YOUR_REPO)
 
 A specialized tool for Project Zomboid server admins to generate clean `servertest.ini` configurations with full support for **Build 42 backslash formatting**.
 
@@ -9,38 +10,42 @@ A specialized tool for Project Zomboid server admins to generate clean `serverte
 
 ---
 
-## 🚀 Features
+## 🚀 Key Features
 
-* **⚡ Smart Scraping:** Extracts Mod IDs and Workshop IDs directly from Steam.
-* **🛡️ Policy Filter:** Automatically blocks "ModdingPolicy" and junk IDs from search results.
-* **📂 B42 Ready:** Toggle between B41 and B42 formats with a single click.
-* **🗺️ Auto-Map Detection:** Identifies map mods and populates the `Map=` line automatically.
-* **🖱️ Drag & Drop:** Reorder your mods visually to set the perfect load order.
+* **⚡ B42 Formatting:** Instantly toggles between B41 and B42 (adds the required `\` before Mod IDs).
+* **🛡️ Junk Filter:** Automatically detects and blocks "ModdingPolicy," "Version," and "Legal" IDs from search results.
+* **🗺️ Auto-Map Detection:** Scans descriptions for map keywords and populates the `Map=` line automatically.
+* **🖱️ Drag & Drop:** Visually reorder your mods to set the load order.
+* **💡 Live Highlighting:** Output boxes highlight in real-time as you move mods to show exactly what changed.
+
+---
+
+## 🔍 Search & Reliability
+> [!IMPORTANT]
+> The **Live Search** is currently in **Experimental Alpha**.
+
+Because of how Steam handles external data requests, search results can occasionally be inconsistent.
+* **Current Status:** Operational 🟢
+* **Top Recommendation:** For 100% accuracy, **paste the Mod URL or Workshop ID** directly into the search bar. This bypasses the search filter and adds the mod exactly as it appears.
 
 ---
 
 ## 🛠️ How to Use
 
-1. **Search:** Type the name of a mod in the search bar.
-2. **Select:** Pick the mod from the dropdown list.
-3. **Verify:** Check the "Map?" box if it's a map mod (the tool usually does this for you!).
-4. **Copy:** Use the green buttons to copy your `WorkshopItems`, `Mods`, and `Map` lines.
-
-> [!TIP]
-> If a mod is being blocked by the "Junk Filter," simply paste the full Steam URL into the search bar to bypass the security check.
-
----
-
-## 📋 Config Outputs Generated
-The tool generates three separate lines for your `.ini` file:
-* `WorkshopItems=` 
-* `Mods=` (Supports `\ModID` for B42)
-* `Map=` (Includes `Muldraugh, KY` as fallback)
+1. **Input:** Type a mod name to search or paste a Steam Workshop URL.
+2. **Select:** If searching, pick the mod from the dropdown (the list closes automatically on selection).
+3. **Organize:** Drag and drop mods to set your preferred load order.
+4. **Copy:** Use the green buttons to copy your generated lines:
+   * `WorkshopItems=`
+   * `Mods=`
+   * `Map=`
 
 ---
 
-## 🏗️ Installation (Self-Hosting)
-Since this is a single-file tool:
-1. Download `index.html`.
-2. Open it in any modern web browser.
-3. (Optional) Host it on **GitHub Pages** for easy access.
+## ⚠️ Known Issues (Alpha)
+* **Steam Rate-Limiting:** Rapid searching may cause Steam to temporarily block requests.
+* **Non-Standard Formatting:** Some older mods use unusual text for their "Mod ID," which may require manual correction using the ✎ (Edit) button.
+* **Policy Mods:** Some map mods include their modding policy under a "Mod ID" tag. Our filter catches most, but always double-check your list!
+
+---
+*Created for the Project Zomboid Admin Community.*
