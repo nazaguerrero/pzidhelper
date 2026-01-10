@@ -42,14 +42,30 @@
         .edit-input { background: #000; color: var(--output); border: 1px solid var(--accent); padding: 4px; width: 250px; }
 
         .search-results-list {
-            position: absolute; top: 100%; left: 0; right: 0;
-            background: #222; border: 1px solid var(--accent); border-radius: 4px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8); max-height: 450px; overflow-y: auto; z-index: 9999;
-        }
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #222;
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 10000;
+}
         .search-item-btn {
-            width: 100%; text-align: left; padding: 15px; background: #222; color: #eee;
-            border: none; border-bottom: 1px solid #333; cursor: pointer; display: flex; flex-direction: column; gap: 4px;
-        }
+    width: 100%;
+    text-align: left;
+    padding: 12px 15px;
+    background: #222;
+    color: #eee;
+    border: none;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+    display: block; /* Ensures they stack vertically */
+    transition: background 0.2s;
+}
         .search-item-btn:hover { background: #333; border-left: 4px solid var(--accent); }
         .search-item-btn b { color: var(--accent); font-size: 1.1rem; }
 
@@ -165,28 +181,46 @@ async function getDetails(id) {
         const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
         const j = await r.json();
         const d = j?.response?.publishedfiledetails?.[0];
+        
         if (!d || d.result !== 1) return null;
 
         const description = d.description || "";
+        const title = d.title || "";
+
+        // 1. Extract ALL instances of "Mod ID: xxxx"
+        const idPattern = /mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/gi;
+        const matches = [...description.matchAll(idPattern)];
         
-        // Improved Regex to find ALL Mod IDs
-        const idMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/gi)];
-        
-        // Filter out common fake/policy IDs
-        const blacklist = ['policy', 'permission', 'credit', 'author'];
-        const validIDs = idMatches
-            .map(m => m[1])
+        // 2. Filter out junk (ModdingPolicy, Permissions, etc.)
+        const blacklist = ['policy', 'permission', 'license', 'legal', 'credit'];
+        let validIDs = matches
+            .map(m => m[1].trim())
             .filter(name => !blacklist.some(word => name.toLowerCase().includes(word)));
 
-        // Use the first valid ID, or fallback to a cleaned Title if none found
-        const finalID = validIDs.length > 0 ? validIDs[0] : d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
+        // 3. Determine the final ID
+        let finalID = "";
+        if (validIDs.length > 0) {
+            // Join multiple IDs with a semicolon if found (excluding junk)
+            finalID = validIDs.join(';');
+        } else {
+            // Fallback: Clean the title if no valid Mod ID is found in description
+            finalID = title.replace(/[^a-zA-Z0-9_\-]/g, '');
+        }
 
-        // Auto-detect if it's a map based on description or title keywords
-        const isMapKeywords = /map|muldraugh|west point|rosewood|riverside|ekron/i.test(description + d.title);
+        // 4. Auto-detect if it's a map
+        const isMapKeywords = /map|muldraugh|west point|rosewood|riverside|creek|leaf/i.test(description + title);
 
-        document.getElementById('status').textContent = "Added: " + finalID;
-        return { wid: id, name: finalID, isMap: isMapKeywords };
-    } catch (e) { return null; }
+        document.getElementById('status').textContent = "Added: " + (validIDs.length > 1 ? "Multiple IDs" : finalID);
+        
+        return { 
+            wid: id, 
+            name: finalID, 
+            isMap: isMapKeywords 
+        };
+    } catch (e) { 
+        console.error("Details Fetch Error:", e);
+        return null; 
+    }
 }
 
     function addModToList(obj) {
@@ -320,5 +354,6 @@ function render() {
 </script>
 </body>
 </html>
+
 
 
