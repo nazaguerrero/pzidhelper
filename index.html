@@ -175,46 +175,65 @@
         return await getDetails(wid);
     }
 
-    async function getDetails(id) {
-        try {
-            const fd = new FormData();
-            fd.append('itemcount', '1');
-            fd.append('publishedfileids[0]', id);
-            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-            const j = await r.json();
-            const d = j?.response?.publishedfiledetails?.[0];
-            if (!d || d.result !== 1) return null;
+async function getDetails(id) {
+    try {
+        const status = document.getElementById('status');
+        const fd = new FormData();
+        fd.append('itemcount', '1');
+        fd.append('publishedfileids[0]', id);
+        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+        const j = await r.json();
+        const d = j?.response?.publishedfiledetails?.[0];
+        
+        if (!d || d.result !== 1) {
+            status.textContent = "❌ Workshop item not found.";
+            return null;
+        }
 
-            const description = d.description || "";
-            const title = d.title || "";
+        const description = d.description || "";
+        const title = d.title || "";
 
-            // 1. Precise Regex: Look for "Mod ID:" but NOT "ModdingPolicy"
-            // This regex ensures we only capture the actual alphanumeric ID after the colon.
-            const idRegex = /^(?!.*ModdingPolicy)mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/gim;
-            const matches = [...description.matchAll(idRegex)];
-            
-            // 2. Filter and Clean
-            const blacklist = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
-            let foundIDs = matches
-                .map(m => m[1].trim()) 
-                .filter(name => name.length > 0 && !blacklist.some(word => name.toLowerCase().includes(word)));
+        // 1. Capture all "Mod ID:" lines
+        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+        
+        const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
+        let validIDs = [];
+        let rejectedJunk = [];
 
-            // 3. Unique Filter (Yanghu fix)
-            let uniqueIDs = [...new Set(foundIDs)];
+        matches.forEach(m => {
+            const idText = m[1].split('\n')[0].trim();
+            if (junkWords.some(word => idText.toLowerCase().includes(word))) {
+                rejectedJunk.push(idText);
+            } else if (idText.length > 0) {
+                validIDs.push(idText);
+            }
+        });
 
-            // Fallback to title if no ID found
-            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            
-            // Keyword detection for Maps
-            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|cell|town/i.test(description + title);
-
-            document.getElementById('status').textContent = "Added: " + (uniqueIDs[0] || "New Mod");
-            return { wid: id, name: finalID, isMap: isMapKeywords };
-        } catch (e) { 
-            console.error(e);
+        // 2. BLOCKING LOGIC
+        // If we found junk but NO valid IDs, stop here.
+        if (validIDs.length === 0 && rejectedJunk.length > 0) {
+            status.innerHTML = `<span style="color:var(--danger)">⚠️ Blocked: Only "${rejectedJunk[0]}" found. Please use the direct URL or ID.</span>`;
             return null; 
         }
+
+        // 3. Finalize valid IDs
+        let uniqueIDs = [...new Set(validIDs)];
+        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+
+        // 4. Final detection for maps
+        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|cell|town|tile/i.test(description + title);
+
+        status.textContent = "✅ Added: " + (uniqueIDs[0] || "Mod");
+        return { 
+            wid: id, 
+            name: finalID, 
+            isMap: isMapKeywords 
+        };
+    } catch (e) { 
+        document.getElementById('status').textContent = "⚠️ Connection error.";
+        return null; 
     }
+}
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -356,6 +375,7 @@ function render() {
 </script>
 </body>
 </html>
+
 
 
 
