@@ -23,6 +23,7 @@ A specialized tool for Project Zomboid server admins to generate clean `serverte
 ---
 
 ## 🔍 Search & Reliability
+![Search Demo](https://github.com/nazaguerrero/pzidhelper/blob/main/IDhelper.gif)
 > [!IMPORTANT]
 > The **Live Search** is currently in **Experimental Alpha**.
 
