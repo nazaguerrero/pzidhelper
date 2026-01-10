@@ -176,35 +176,39 @@
     }
 
     async function getDetails(id) {
-        try {
-            const fd = new FormData();
-            fd.append('itemcount', '1');
-            fd.append('publishedfileids[0]', id);
-            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-            const j = await r.json();
-            const d = j?.response?.publishedfiledetails?.[0];
-            if (!d || d.result !== 1) return null;
+    try {
+        const fd = new FormData();
+        fd.append('itemcount', '1');
+        fd.append('publishedfileids[0]', id);
+        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+        const j = await r.json();
+        const d = j?.response?.publishedfiledetails?.[0];
+        if (!d || d.result !== 1) return null;
 
-            const description = d.description || "";
-            // Find ALL "Mod ID:" strings
-            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/gi)];
-            
-            // FILTER 1: Skip junk IDs
-            const blacklist = ['policy', 'permission', 'license', 'legal', 'credit'];
-            let foundIDs = matches
-                .map(m => m[1].trim())
-                .filter(name => !blacklist.some(word => name.toLowerCase().includes(word)));
+        const description = d.description || "";
+        const title = d.title || "";
 
-            // FILTER 2: Remove duplicates (Fixes the Yanghu double-ID bug)
-            let uniqueIDs = [...new Set(foundIDs)];
+        // 1. Find all "Mod ID: xxxx" matches
+        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+        
+        // 2. Filter out junk and CLEAN the IDs
+        const blacklist = ['policy', 'permission', 'license', 'legal', 'credit'];
+        let foundIDs = matches
+            .map(m => m[1].split('\n')[0].trim()) // Ensure we only get the first line of the match
+            .filter(name => name.length > 0 && !blacklist.some(word => name.toLowerCase().includes(word)));
 
-            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location/i.test(description + d.title);
+        // 3. REMOVE DUPLICATES (Fixes Yanghu double-entry)
+        let uniqueIDs = [...new Set(foundIDs)];
 
-            document.getElementById('status').textContent = "Added: " + finalID;
-            return { wid: id, name: finalID, isMap: isMapKeywords };
-        } catch (e) { return null; }
-    }
+        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+        
+        // Auto-detect Map
+        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|folder/i.test(description + title);
+
+        document.getElementById('status').textContent = "Added: " + (uniqueIDs[0] || "Mod");
+        return { wid: id, name: finalID, isMap: isMapKeywords };
+    } catch (e) { return null; }
+}
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -214,60 +218,65 @@
         }
     }
 
-    function render() {
-        const list = document.getElementById('modlist');
-        list.innerHTML = '';
-        if (mods.length > 0) {
-            const header = document.createElement('div');
-            header.className = 'list-header';
-            header.innerHTML = `<div><h3 style="display:inline;">Added Mods</h3><span class="count-badge">${mods.length}</span></div><button id="clrBtn" style="background:var(--danger); padding:5px 12px; font-size:12px;">Clear All</button>`;
-            list.appendChild(header);
-            document.getElementById('clrBtn').onclick = () => { if(confirm("Wipe the entire list?")) { mods = []; saveToDisk(); render(); } };
-
-            mods.forEach((m, i) => {
-                const d = document.createElement('div');
-                d.className = 'mod-item';
-                d.draggable = true;
-                d.dataset.wid = m.wid;
-                d.innerHTML = `
-                    <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <label style="font-size:10px; color:#888;">Map?</label>
-                        <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
-                        <button class="edit-btn" style="background:var(--btn); padding:5px 8px;">✎</button>
-                        <button class="rmv-btn" style="background:var(--danger); padding:5px 8px;">X</button>
-                    </div>
-                `;
-
-                // Logic Fix: Use specific classes and prevent event bubbling
-                d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
-                
-                d.querySelector('.edit-btn').onclick = (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    const label = d.querySelector('.mod-id-label');
-                    const input = document.createElement('input');
-                    input.className = 'edit-input';
-                    input.value = m.name;
-                    input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
-                    input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
-                    label.replaceWith(input);
-                    input.focus();
-                };
-
-                d.querySelector('.rmv-btn').onclick = (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    mods.splice(i, 1);
-                    saveToDisk();
-                    render();
-                };
-
-                d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; };
-                d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
-                list.appendChild(d);
-            });
-        }
+function render() {
+    const list = document.getElementById('modlist');
+    list.innerHTML = '';
+    if (mods.length === 0) {
+        list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px;">No mods added yet.</div>`;
         updateOut();
+        return;
     }
+
+    const header = document.createElement('div');
+    header.className = 'list-header';
+    header.innerHTML = `<div><h3 style="display:inline;">Added Mods</h3><span class="count-badge">${mods.length}</span></div><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
+    list.appendChild(header);
+    document.getElementById('clrBtn').onclick = () => { if(confirm("Clear everything?")) { mods = []; saveToDisk(); render(); } };
+
+    mods.forEach((m, i) => {
+        const d = document.createElement('div');
+        d.className = 'mod-item';
+        d.draggable = true;
+        d.dataset.wid = m.wid;
+        
+        // We use stopPropagation on buttons so they don't trigger the "Drag" event
+        d.innerHTML = `
+            <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <label style="font-size:10px; color:#888;">Map?</label>
+                <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
+                <button class="edit-btn" style="background:var(--btn); padding:5px 10px;">✎</button>
+                <button class="rmv-btn" style="background:var(--danger); padding:5px 10px;">X</button>
+            </div>
+        `;
+
+        d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
+        
+        d.querySelector('.edit-btn').onclick = (e) => {
+            e.stopPropagation(); // Stops drag interference
+            const label = d.querySelector('.mod-id-label');
+            const input = document.createElement('input');
+            input.className = 'edit-input';
+            input.value = m.name;
+            input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
+            input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
+            label.replaceWith(input);
+            input.focus();
+        };
+
+        d.querySelector('.rmv-btn').onclick = (e) => {
+            e.stopPropagation(); // Stops drag interference
+            mods.splice(i, 1);
+            saveToDisk();
+            render();
+        };
+
+        d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; };
+        d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
+        list.appendChild(d);
+    });
+    updateOut();
+}
 
     function updateOut() {
         const outW = document.getElementById('outW');
@@ -341,6 +350,7 @@
 </script>
 </body>
 </html>
+
 
 
 
