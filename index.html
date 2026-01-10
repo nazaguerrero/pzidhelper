@@ -166,86 +166,74 @@ async function fetchInfo(val) {
         return await getDetails(wid, true); 
     }
 
-    async function getDetails(id, isDirect = false) {
-        try {
-            const status = document.getElementById('status');
-            const fd = new FormData();
-            fd.append('itemcount', '1');
-            fd.append('publishedfileids[0]', id);
-            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-            const j = await r.json();
-            const d = j?.response?.publishedfiledetails?.[0];
-            
-            if (!d || d.result !== 1) return null;
+async function getDetails(id, isDirect = false) {
+    try {
+        const status = document.getElementById('status');
+        const fd = new FormData();
+        fd.append('itemcount', '1');
+        fd.append('publishedfileids[0]', id);
+        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+        const j = await r.json();
+        const d = j?.response?.publishedfiledetails?.[0];
+        
+        if (!d || d.result !== 1) return null;
 
-            const description = d.description || "";
-            const title = d.title || "";
+        const description = d.description || "";
+        const title = d.title || "";
+        const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy', 'version'];
+        
+        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+        let validIDs = [];
+        let junkFound = [];
 
-            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-            const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy', 'version'];
-            
-            let validIDs = [];
-            let junkFound = [];
-
-            matches.forEach(m => {
-                const idText = m[1].split('\n')[0].trim();
-                if (junkWords.some(word => idText.toLowerCase().includes(word))) {
-                    junkFound.push(idText);
-                } else if (idText.length > 0) {
-                    validIDs.push(idText);
-                }
-            });
-
-            // BLOCKING LOGIC - Only runs if NOT a direct URL/ID
-            if (!isDirect && validIDs.length === 0 && junkFound.length > 0) {
-                status.innerHTML = `<div class="warn-box">⚠️ BLOCKED: Search found a Policy Mod ("${junkFound[0]}"). <br><small>If you really want this, paste the Mod URL directly.</small></div>`;
-                return null; 
+        matches.forEach(m => {
+            const idText = m[1].split('\n')[0].trim();
+            if (junkWords.some(word => idText.toLowerCase().includes(word))) {
+                junkFound.push(idText);
+            } else if (idText.length > 0) {
+                validIDs.push(idText);
             }
+        });
 
-            // Path for either Direct URL or successful search
-            let uniqueIDs = [...new Set(validIDs)];
-            // If direct URL and NO Mod ID found in description, use Title as fallback
-            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
-
-            status.innerHTML = `<span style="color:var(--success)">✅ Added: ${uniqueIDs[0] || "Mod"}</span>`;
-            return { wid: id, name: finalID, isMap: isMapKeywords };
-        } catch (e) { return null; }
-    }
-
-    function addModToList(obj) {
-        if (!mods.some(m => String(m.wid) === String(obj.wid))) {
-            mods.push(obj);
-            render();
-            saveToDisk();
+        // BLOCK ONLY SEARCH: If search result is clearly a policy, stop it.
+        if (!isDirect && validIDs.length === 0 && (junkFound.length > 0 || title.toLowerCase().includes('policy'))) {
+            status.innerHTML = `<div class="warn-box" style="background:#600; border:1px solid red; padding:10px;">⚠️ BLOCKED: This search result is a Policy mod. Please use the URL for the real mod.</div>`;
+            return null; 
         }
-    }
+
+        let uniqueIDs = [...new Set(validIDs)];
+        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
+
+        status.innerHTML = `<span style="color:var(--success)">✅ Added: ${uniqueIDs[0] || "Mod"}</span>`;
+        return { wid: id, name: finalID, isMap: isMapKeywords };
+    } catch (e) { return null; }
+}
 
 function showResults(data) {
-        const container = document.getElementById('input-container');
-        const old = document.querySelector('.search-results-list');
-        if (old) old.remove();
-        const list = document.createElement('div');
-        list.className = 'search-results-list';
-        list.innerHTML = `<div style="padding:10px; background:#111; border-bottom:1px solid #444;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span></div>`;
-        
-        data.forEach(item => {
-            const b = document.createElement('button');
-            b.className = 'search-item-btn';
-            b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
-            b.onclick = async () => { 
-                // Passing 'false' because this is from the search list
-                const details = await getDetails(item.wid, false); 
-                if (details) {
-                    addModToList(details); 
-                    list.remove(); 
-                    document.getElementById('mainInput').value = ''; 
-                }
-            };
-            list.appendChild(b);
-        });
-        container.appendChild(list);
-    }
+    const container = document.getElementById('input-container');
+    const old = document.querySelector('.search-results-list');
+    if (old) old.remove();
+    const list = document.createElement('div');
+    list.className = 'search-results-list';
+    list.innerHTML = `<div style="padding:10px; background:#111; border-bottom:1px solid #444;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span></div>`;
+    
+    data.forEach(item => {
+        const b = document.createElement('button');
+        b.className = 'search-item-btn';
+        b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
+        b.onclick = async () => { 
+            const details = await getDetails(item.wid, false); // isDirect = false
+            if (details) {
+                addModToList(details); 
+                list.remove(); 
+                document.getElementById('mainInput').value = ''; 
+            }
+        };
+        list.appendChild(b);
+    });
+    container.appendChild(list);
+}
 
     function render() {
         const list = document.getElementById('modlist');
@@ -296,22 +284,30 @@ function showResults(data) {
         updateOut();
     }
 
-    function updateOut() {
-        const outW = document.getElementById('outW');
-        const outM = document.getElementById('outM');
-        const outMap = document.getElementById('outMap');
-        if (!mods.length) { 
-            outW.textContent = ''; outM.textContent = ''; outMap.textContent = 'Map=Muldraugh, KY'; 
-            return; 
-        }
-        const wStr = mods.map(m => m.wid).join(';');
-        const mStr = mods.map(m => m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';')).join(';');
-        const mapMods = mods.filter(m => m.isMap).map(m => m.name.split(';')[0].trim());
-        mapMods.push("Muldraugh, KY");
-        outW.textContent = `WorkshopItems=${wStr}`;
-        outM.textContent = `Mods=${mStr}`;
-        outMap.textContent = `Map=${mapMods.join(';')}`;
+function updateOut() {
+    const outW = document.getElementById('outW');
+    const outM = document.getElementById('outM');
+    const outMap = document.getElementById('outMap');
+    if (!mods.length) { 
+        outW.innerHTML = ''; outM.innerHTML = ''; outMap.innerHTML = 'Map=Muldraugh, KY'; 
+        return; 
     }
+
+    // Restore Highlight Logic
+    const wStr = mods.map(m => (String(m.wid) === String(draggingWID)) ? `<span class="highlight-text">${m.wid}</span>` : m.wid).join(';');
+    
+    const mStr = mods.map(m => {
+        const names = m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
+        return (String(m.wid) === String(draggingWID)) ? `<span class="highlight-text">${names}</span>` : names;
+    }).join(';');
+
+    const mapMods = mods.filter(m => m.isMap).map(m => m.name.split(';')[0].trim());
+    mapMods.push("Muldraugh, KY");
+    
+    outW.innerHTML = `WorkshopItems=${wStr}`;
+    outM.innerHTML = `Mods=${mStr}`;
+    outMap.innerHTML = `Map=${mapMods.join(';')}`;
+}
 
     function copyText(id) {
         const el = document.getElementById(id);
@@ -348,4 +344,5 @@ function showResults(data) {
 </script>
 </body>
 </html>
+
 
