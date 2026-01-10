@@ -137,12 +137,15 @@
         if (info) { addModToList(info); input.value = ''; }
     }
 
-    async function fetchInfo(val) {
+async function fetchInfo(val) {
         const status = document.getElementById('status');
         status.innerHTML = "Searching Steam...";
+        
+        // Check if it's a direct ID or URL
         let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
         
         if (!wid) {
+            // This is a SEARCH (Word search)
             try {
                 const p = new URLSearchParams({ appid: '108600', searchtext: val, section: 'readytouseitems', browsesort: 'trend', p: '1' });
                 const r = await fetch(`${PROXY}/steam-search?${p}`);
@@ -158,10 +161,12 @@
                 return null;
             } catch (e) { status.textContent = "Search failed."; return null; }
         }
-        return await getDetails(wid);
+
+        // It IS a direct URL/ID: Pass 'true' to skip the junk filter
+        return await getDetails(wid, true); 
     }
 
-    async function getDetails(id) {
+    async function getDetails(id, isDirect = false) {
         try {
             const status = document.getElementById('status');
             const fd = new FormData();
@@ -180,24 +185,26 @@
             const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy', 'version'];
             
             let validIDs = [];
-            let junkDetected = "";
+            let junkFound = [];
 
             matches.forEach(m => {
                 const idText = m[1].split('\n')[0].trim();
                 if (junkWords.some(word => idText.toLowerCase().includes(word))) {
-                    junkDetected = idText;
+                    junkFound.push(idText);
                 } else if (idText.length > 0) {
                     validIDs.push(idText);
                 }
             });
 
-            // BLOCKING LOGIC
-            if (validIDs.length === 0 && (junkDetected !== "" || description.toLowerCase().includes("moddingpolicy"))) {
-                status.innerHTML = `<div class="warn-box">⚠️ BLOCKED: Only Policy/Junk found ("${junkDetected || 'ModdingPolicy'}"). Please use ✎ to add the real ID manually.</div>`;
+            // BLOCKING LOGIC - Only runs if NOT a direct URL/ID
+            if (!isDirect && validIDs.length === 0 && junkFound.length > 0) {
+                status.innerHTML = `<div class="warn-box">⚠️ BLOCKED: Search found a Policy Mod ("${junkFound[0]}"). <br><small>If you really want this, paste the Mod URL directly.</small></div>`;
                 return null; 
             }
 
+            // Path for either Direct URL or successful search
             let uniqueIDs = [...new Set(validIDs)];
+            // If direct URL and NO Mod ID found in description, use Title as fallback
             const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
             const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
 
@@ -214,21 +221,22 @@
         }
     }
 
-    function showResults(data) {
+function showResults(data) {
         const container = document.getElementById('input-container');
         const old = document.querySelector('.search-results-list');
         if (old) old.remove();
         const list = document.createElement('div');
         list.className = 'search-results-list';
-        list.innerHTML = `<div style="padding:10px; background:#111; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #444;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span><button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button></div>`;
+        list.innerHTML = `<div style="padding:10px; background:#111; border-bottom:1px solid #444;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span></div>`;
         
         data.forEach(item => {
             const b = document.createElement('button');
             b.className = 'search-item-btn';
             b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
             b.onclick = async () => { 
-                const details = await getDetails(item.wid); 
-                if (details) { // Only add if it passed the Gatekeeper!
+                // Passing 'false' because this is from the search list
+                const details = await getDetails(item.wid, false); 
+                if (details) {
                     addModToList(details); 
                     list.remove(); 
                     document.getElementById('mainInput').value = ''; 
@@ -340,3 +348,4 @@
 </script>
 </body>
 </html>
+
