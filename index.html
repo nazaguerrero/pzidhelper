@@ -157,21 +157,37 @@
         return await getDetails(wid);
     }
 
-    async function getDetails(id) {
-        try {
-            const fd = new FormData();
-            fd.append('itemcount', '1');
-            fd.append('publishedfileids[0]', id);
-            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-            const j = await r.json();
-            const d = j?.response?.publishedfiledetails?.[0];
-            if (!d || d.result !== 1) return null;
-            const description = d.description || "";
-            const firstID = description.match(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            document.getElementById('status').textContent = "Added: " + firstID;
-            return { wid: id, name: firstID };
-        } catch (e) { return null; }
-    }
+async function getDetails(id) {
+    try {
+        const fd = new FormData();
+        fd.append('itemcount', '1');
+        fd.append('publishedfileids[0]', id);
+        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+        const j = await r.json();
+        const d = j?.response?.publishedfiledetails?.[0];
+        if (!d || d.result !== 1) return null;
+
+        const description = d.description || "";
+        
+        // Improved Regex to find ALL Mod IDs
+        const idMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/gi)];
+        
+        // Filter out common fake/policy IDs
+        const blacklist = ['policy', 'permission', 'credit', 'author'];
+        const validIDs = idMatches
+            .map(m => m[1])
+            .filter(name => !blacklist.some(word => name.toLowerCase().includes(word)));
+
+        // Use the first valid ID, or fallback to a cleaned Title if none found
+        const finalID = validIDs.length > 0 ? validIDs[0] : d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
+
+        // Auto-detect if it's a map based on description or title keywords
+        const isMapKeywords = /map|muldraugh|west point|rosewood|riverside|ekron/i.test(description + d.title);
+
+        document.getElementById('status').textContent = "Added: " + finalID;
+        return { wid: id, name: finalID, isMap: isMapKeywords };
+    } catch (e) { return null; }
+}
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -304,4 +320,5 @@ function render() {
 </script>
 </body>
 </html>
+
 
