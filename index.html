@@ -154,18 +154,20 @@
         const status = document.getElementById('status');
         status.textContent = "Searching Steam...";
         let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
+        
         if (!wid) {
             try {
                 const p = new URLSearchParams({ appid: '108600', searchtext: val, section: 'readytouseitems', browsesort: 'trend', p: '1' });
                 const r = await fetch(`${PROXY}/steam-search?${p}`);
                 const t = await r.text();
                 const results = [];
+                // More precise regex to avoid capturing UI text as Title
                 const searchRegex = /sharedfiles\/filedetails\/\?id=(\d+)[\s\S]*?workshopItemTitle[^>]*>([\s\S]*?)<\/div>/gi;
                 let m;
                 while ((m = searchRegex.exec(t)) !== null && results.length < 5) {
                     results.push({ wid: m[1], title: m[2].replace(/<[^>]+>/g, '').replace(/ID:|Learn More/gi, '').trim() });
                 }
-                if (results.length === 0) { status.textContent = "No results found."; return null; }
+                if (results.length === 0) { status.textContent = "No results found for word search."; return null; }
                 showResults(results);
                 return null;
             } catch (e) { status.textContent = "Search failed."; return null; }
@@ -173,55 +175,36 @@
         return await getDetails(wid);
     }
 
-async function getDetails(id) {
-    try {
-        const fd = new FormData();
-        fd.append('itemcount', '1');
-        fd.append('publishedfileids[0]', id);
-        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-        const j = await r.json();
-        const d = j?.response?.publishedfiledetails?.[0];
-        
-        if (!d || d.result !== 1) return null;
+    async function getDetails(id) {
+        try {
+            const fd = new FormData();
+            fd.append('itemcount', '1');
+            fd.append('publishedfileids[0]', id);
+            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+            const j = await r.json();
+            const d = j?.response?.publishedfiledetails?.[0];
+            if (!d || d.result !== 1) return null;
 
-        const description = d.description || "";
-        const title = d.title || "";
+            const description = d.description || "";
+            // Find ALL "Mod ID:" strings
+            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/gi)];
+            
+            // FILTER 1: Skip junk IDs
+            const blacklist = ['policy', 'permission', 'license', 'legal', 'credit'];
+            let foundIDs = matches
+                .map(m => m[1].trim())
+                .filter(name => !blacklist.some(word => name.toLowerCase().includes(word)));
 
-        // 1. Extract ALL instances of "Mod ID: xxxx"
-        const idPattern = /mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/gi;
-        const matches = [...description.matchAll(idPattern)];
-        
-        // 2. Filter out junk (ModdingPolicy, Permissions, etc.)
-        const blacklist = ['policy', 'permission', 'license', 'legal', 'credit'];
-        let validIDs = matches
-            .map(m => m[1].trim())
-            .filter(name => !blacklist.some(word => name.toLowerCase().includes(word)));
+            // FILTER 2: Remove duplicates (Fixes the Yanghu double-ID bug)
+            let uniqueIDs = [...new Set(foundIDs)];
 
-        // 3. Determine the final ID
-        let finalID = "";
-        if (validIDs.length > 0) {
-            // Join multiple IDs with a semicolon if found (excluding junk)
-            finalID = validIDs.join(';');
-        } else {
-            // Fallback: Clean the title if no valid Mod ID is found in description
-            finalID = title.replace(/[^a-zA-Z0-9_\-]/g, '');
-        }
+            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
+            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location/i.test(description + d.title);
 
-        // 4. Auto-detect if it's a map
-        const isMapKeywords = /map|muldraugh|west point|rosewood|riverside|creek|leaf/i.test(description + title);
-
-        document.getElementById('status').textContent = "Added: " + (validIDs.length > 1 ? "Multiple IDs" : finalID);
-        
-        return { 
-            wid: id, 
-            name: finalID, 
-            isMap: isMapKeywords 
-        };
-    } catch (e) { 
-        console.error("Details Fetch Error:", e);
-        return null; 
+            document.getElementById('status').textContent = "Added: " + finalID;
+            return { wid: id, name: finalID, isMap: isMapKeywords };
+        } catch (e) { return null; }
     }
-}
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -231,13 +214,13 @@ async function getDetails(id) {
         }
     }
 
-function render() {
+    function render() {
         const list = document.getElementById('modlist');
         list.innerHTML = '';
         if (mods.length > 0) {
             const header = document.createElement('div');
             header.className = 'list-header';
-            header.innerHTML = `<div><h3 style="display:inline;">Added Mods</h3><span class="count-badge">${mods.length}</span></div><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
+            header.innerHTML = `<div><h3 style="display:inline;">Added Mods</h3><span class="count-badge">${mods.length}</span></div><button id="clrBtn" style="background:var(--danger); padding:5px 12px; font-size:12px;">Clear All</button>`;
             list.appendChild(header);
             document.getElementById('clrBtn').onclick = () => { if(confirm("Wipe the entire list?")) { mods = []; saveToDisk(); render(); } };
 
@@ -246,22 +229,39 @@ function render() {
                 d.className = 'mod-item';
                 d.draggable = true;
                 d.dataset.wid = m.wid;
-                
-                // Added a small "Map" toggle indicator in the UI
                 d.innerHTML = `
                     <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
-                    <div style="display:flex; gap:5px; align-items:center;">
+                    <div style="display:flex; gap:8px; align-items:center;">
                         <label style="font-size:10px; color:#888;">Map?</label>
                         <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
-                        <button class="edit-btn">✎</button>
-                        <button class="rmv" style="background:var(--danger)">X</button>
+                        <button class="edit-btn" style="background:var(--btn); padding:5px 8px;">✎</button>
+                        <button class="rmv-btn" style="background:var(--danger); padding:5px 8px;">X</button>
                     </div>
                 `;
-                
+
+                // Logic Fix: Use specific classes and prevent event bubbling
                 d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
-                // ... (Keep edit and remove logic) ...
                 
-                d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; updateOut(); };
+                d.querySelector('.edit-btn').onclick = (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    const label = d.querySelector('.mod-id-label');
+                    const input = document.createElement('input');
+                    input.className = 'edit-input';
+                    input.value = m.name;
+                    input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
+                    input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
+                    label.replaceWith(input);
+                    input.focus();
+                };
+
+                d.querySelector('.rmv-btn').onclick = (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    mods.splice(i, 1);
+                    saveToDisk();
+                    render();
+                };
+
+                d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; };
                 d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
                 list.appendChild(d);
             });
@@ -273,32 +273,40 @@ function render() {
         const outW = document.getElementById('outW');
         const outM = document.getElementById('outM');
         const outMap = document.getElementById('outMap');
-        if (!mods.length) { 
-            outW.innerHTML = ''; outM.innerHTML = ''; 
-            outMap.innerHTML = 'Map=Muldraugh, KY'; 
-            return; 
-        }
+        if (!mods.length) { outW.innerHTML = ''; outM.innerHTML = ''; outMap.innerHTML = 'Map=Muldraugh, KY'; return; }
 
         const wStr = mods.map(m => (m.wid === draggingWID) ? `<span class="highlight-text">${m.wid}</span>` : m.wid).join(';');
-        
         const mStr = mods.map(m => {
             const names = m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
             return (m.wid === draggingWID) ? `<span class="highlight-text">${names}</span>` : names;
         }).join(';');
 
-        // Map Logic: Filter mods marked as maps, then append Muldraugh, KY
-        const mapMods = mods.filter(m => m.isMap).map(m => {
-            const name = m.name.split(';')[0].trim(); // Take the first ID if multiple exist
-            return (m.wid === draggingWID) ? `<span class="highlight-text">${name}</span>` : name;
-        });
+        const mapMods = mods.filter(m => m.isMap).map(m => m.name.split(';')[0].trim());
         mapMods.push("Muldraugh, KY");
-        const mapFinal = mapMods.join(';');
-
+        
         outW.innerHTML = `WorkshopItems=${wStr}`;
         outM.innerHTML = `Mods=${mStr}`;
-        outMap.innerHTML = `Map=${mapFinal}`;
+        outMap.innerHTML = `Map=${mapMods.join(';')}`;
     }
 
+    function showResults(data) {
+        const container = document.getElementById('input-container');
+        const old = document.querySelector('.search-results-list');
+        if (old) old.remove();
+        const list = document.createElement('div');
+        list.className = 'search-results-list';
+        list.innerHTML = `<div style="padding:10px; background:#111; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #444;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span><button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button></div>`;
+        data.forEach(item => {
+            const b = document.createElement('button');
+            b.className = 'search-item-btn';
+            b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
+            b.onclick = async () => { const details = await getDetails(item.wid); if (details) addModToList(details); list.remove(); document.getElementById('mainInput').value = ''; };
+            list.appendChild(b);
+        });
+        container.appendChild(list);
+    }
+
+    // Drag-over Logic
     document.getElementById('modlist').addEventListener('dragover', e => {
         e.preventDefault();
         const dragging = document.querySelector('.dragging');
@@ -308,7 +316,7 @@ function render() {
         if (afterElement == null) list.appendChild(dragging);
         else list.insertBefore(dragging, afterElement);
         const currentItems = [...document.querySelectorAll('.mod-item')];
-        mods = currentItems.map(item => mods.find(m => m.wid === item.dataset.wid));
+        mods = currentItems.map(item => mods.find(m => String(m.wid) === String(item.dataset.wid)));
         saveToDisk();
         updateOut();
     });
@@ -329,31 +337,11 @@ function render() {
             setTimeout(() => el.classList.remove('copy-flash'), 600);
         });
     }
-
-    function showResults(data) {
-        const container = document.getElementById('input-container');
-        const old = document.querySelector('.search-results-list');
-        if (old) old.remove();
-        const list = document.createElement('div');
-        list.className = 'search-results-list';
-        list.innerHTML = `<div style="padding:10px; background:#111; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #444;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span><button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button></div>`;
-        data.forEach(item => {
-            const b = document.createElement('button');
-            b.className = 'search-item-btn';
-            b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
-            b.onclick = async () => {
-                const details = await getDetails(item.wid);
-                if (details) addModToList(details);
-                list.remove();
-            };
-            list.appendChild(b);
-        });
-        container.appendChild(list);
-    }
 })();
 </script>
 </body>
 </html>
+
 
 
 
