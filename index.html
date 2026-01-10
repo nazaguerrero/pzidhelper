@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PZ B42 ID Helper </title>
+    <title>PZ B42 ID Helper Pro</title>
     <style>
         :root {
             --bg: #111; --text: #eee; --accent: #ff6600; --card: #222;
@@ -22,7 +22,7 @@
         .v-btn { background: #333; color: #888; border: 1px solid #444; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .v-btn.active { background: var(--accent); color: #000; border-color: #fff; }
 
-        #input-container { position: relative; display: flex; gap: 10px; margin-bottom: 10px; }
+        #input-container { position: relative; display: flex; gap: 10px; margin-bottom: 10px; z-index: 100; }
         input[type="text"] { flex: 1; padding: 12px; background: var(--card); color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 1rem; }
         
         button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--btn); color: #fff; font-size: 1rem; transition: background 0.2s; }
@@ -30,6 +30,9 @@
         
         #status { color: var(--warning); margin-bottom: 15px; min-height: 22px; font-size: 0.9rem; font-weight: bold; text-align: center;}
         
+        .list-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #444; margin-bottom: 10px; }
+        .count-badge { background: var(--accent); color: #000; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.85rem; margin-left: 8px; }
+
         .mod-item {
             background: var(--card); padding: 12px; margin: 8px 0; border-radius: 6px;
             display: flex; justify-content: space-between; align-items: center;
@@ -38,72 +41,23 @@
         .mod-item.dragging { opacity: 0.5; border: 2px solid var(--accent) !important; background: #333; }
         .edit-input { background: #000; color: var(--output); border: 1px solid var(--accent); padding: 4px; width: 250px; }
 
+        .search-results-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: #222; border: 1px solid var(--accent); border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); max-height: 450px; overflow-y: auto; z-index: 9999;
+        }
+        .search-item-btn {
+            width: 100%; text-align: left; padding: 15px; background: #222; color: #eee;
+            border: none; border-bottom: 1px solid #333; cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+        }
+        .search-item-btn:hover { background: #333; border-left: 4px solid var(--accent); }
+        .search-item-btn b { color: var(--accent); font-size: 1.1rem; }
+
         pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; border: 1px solid #333; white-space: pre-wrap; word-break: break-all; font-family: monospace; }
         .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; box-shadow: 0 0 10px var(--accent); }
 
         @keyframes flash-success { 0% { background-color: #004400; } 100% { background-color: #000000; } }
         .copy-flash { animation: flash-success 0.6s ease-out !important; }
-
-        .search-results-list {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0; /* Ensures it spans the full width of the container */
-    background: #222;
-    border: 1px solid var(--accent);
-    border-radius: 4px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    max-height: 450px;
-    overflow-y: auto;
-    z-index: 9999;
-}
-
-.search-item-btn {
-    width: 100%;
-    text-align: left;
-    padding: 15px;
-    background: #222;
-    color: #eee;
-    border: none;
-    border-bottom: 1px solid #333;
-    cursor: pointer;
-    display: flex; /* Flexbox keeps title and ID separated */
-    flex-direction: column;
-    gap: 4px;
-    transition: 0.2s;
-}
-
-.search-item-btn:hover {
-    background: #333;
-    border-left: 4px solid var(--accent);
-}
-
-.search-item-btn b { color: var(--accent); font-size: 1.1rem; }
-.search-item-btn small { color: #888; font-family: monospace; }
-.list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 5px;
-    border-bottom: 1px solid #444;
-    margin-bottom: 10px;
-}
-
-.count-badge {
-    background: var(--accent);
-    color: #000;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-weight: bold;
-    font-size: 0.85rem;
-    margin-left: 8px;
-}
-
-.clear-btn {
-    background: var(--danger);
-    font-size: 0.8rem;
-    padding: 5px 12px;
-}
     </style>
 </head>
 <body>
@@ -140,13 +94,17 @@
     const PROXY = 'https://pz-mod-proxy.nazaguerrero.workers.dev';
     let mods = [];
     let isB42 = true;
-    let draggingWID = null; // THE KEY: Persistent tracking
+    let draggingWID = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         loadFromDisk();
         document.getElementById('v41').onclick = () => { isB42 = false; updateToggleUI(); };
         document.getElementById('v42').onclick = () => { isB42 = true; updateToggleUI(); };
         document.getElementById('addBtn').onclick = handleAdd;
+        
+        // RE-ADDED ENTER KEY SUPPORT
+        document.getElementById('mainInput').onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
+        
         document.getElementById('copyW').onclick = () => copyText('outW');
         document.getElementById('copyM').onclick = () => copyText('outM');
         render();
@@ -173,55 +131,27 @@
     }
 
     async function fetchInfo(val) {
-    const status = document.getElementById('status');
-    status.textContent = "Searching Steam...";
-    
-    // Check if it's already a direct ID or URL first
-    let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
-    
-    if (!wid) {
-        try {
-            const p = new URLSearchParams({
-                appid: '108600', // Project Zomboid
-                searchtext: val,
-                section: 'readytouseitems',
-                browsesort: 'trend',
-                p: '1'
-            });
-
-            const r = await fetch(`${PROXY}/steam-search?${p}`);
-            const t = await r.text();
-            
-            const results = [];
-            // Updated Regex for 2026 Steam HTML structure
-            // Looks for the link containing the ID and the text nearby
-            const searchRegex = /sharedfiles\/filedetails\/\?id=(\d+)[\s\S]*?workshopItemTitle[^>]*>([\s\S]*?)<\/div>/gi;
-            
-            let m;
-            while ((m = searchRegex.exec(t)) !== null && results.length < 5) {
-                results.push({
-                    wid: m[1],
-                    title: m[2].replace(/<[^>]+>/g, '').trim() // Clean HTML tags from title
-                });
-            }
-
-            if (results.length === 0) {
-                status.textContent = "❌ No results for '" + val + "'. Try just one word.";
-                console.log("Search HTML snippet:", t.substring(0, 500)); // Debugging
+        const status = document.getElementById('status');
+        status.textContent = "Searching Steam...";
+        let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
+        if (!wid) {
+            try {
+                const p = new URLSearchParams({ appid: '108600', searchtext: val, section: 'readytouseitems', browsesort: 'trend', p: '1' });
+                const r = await fetch(`${PROXY}/steam-search?${p}`);
+                const t = await r.text();
+                const results = [];
+                const searchRegex = /sharedfiles\/filedetails\/\?id=(\d+)[\s\S]*?workshopItemTitle[^>]*>([\s\S]*?)<\/div>/gi;
+                let m;
+                while ((m = searchRegex.exec(t)) !== null && results.length < 5) {
+                    results.push({ wid: m[1], title: m[2].replace(/<[^>]+>/g, '').replace(/ID:|Learn More/gi, '').trim() });
+                }
+                if (results.length === 0) { status.textContent = "No results found."; return null; }
+                showResults(results);
                 return null;
-            }
-
-            showResults(results);
-            status.textContent = "Select a result below:";
-            return null;
-        } catch (e) {
-            status.textContent = "⚠️ Connection error. Try again.";
-            console.error(e);
-            return null;
+            } catch (e) { status.textContent = "Search failed."; return null; }
         }
+        return await getDetails(wid);
     }
-    return await getDetails(wid);
-}
 
     async function getDetails(id) {
         try {
@@ -233,9 +163,8 @@
             const d = j?.response?.publishedfiledetails?.[0];
             if (!d || d.result !== 1) return null;
             const description = d.description || "";
-            const matches = description.match(/mod\s*id/gi) || [];
             const firstID = description.match(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/i)?.[1] || d.title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            document.getElementById('status').textContent = matches.length > 1 ? `⚠️ Multiple IDs found!` : `Added: ${firstID}`;
+            document.getElementById('status').textContent = "Added: " + firstID;
             return { wid: id, name: firstID };
         } catch (e) { return null; }
     }
@@ -248,108 +177,52 @@
         }
     }
 
-function render() {
-    const list = document.getElementById('modlist');
-    list.innerHTML = '';
+    function render() {
+        const list = document.getElementById('modlist');
+        list.innerHTML = '';
+        if (mods.length > 0) {
+            const header = document.createElement('div');
+            header.className = 'list-header';
+            header.innerHTML = `<div><h3 style="display:inline;">Added Mods</h3><span class="count-badge">${mods.length}</span></div><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
+            list.appendChild(header);
+            document.getElementById('clrBtn').onclick = () => { if(confirm("Wipe the entire list?")) { mods = []; saveToDisk(); render(); } };
 
-    if (mods.length > 0) {
-        // Create the Header with Count and Clear All
-        const header = document.createElement('div');
-        header.className = 'list-header';
-        header.innerHTML = `
-            <div>
-                <h3 style="display:inline; margin:0;">Added Mods</h3>
-                <span class="count-badge">${mods.length}</span>
-            </div>
-            <button class="clear-btn" id="clrBtn">Clear All</button>
-        `;
-        list.appendChild(header);
-
-        // Clear All Logic
-        document.getElementById('clrBtn').onclick = () => {
-            if (confirm("Are you sure you want to clear all " + mods.length + " mods?")) {
-                mods = [];
-                saveToDisk();
-                render();
-            }
-        };
-
-        // Render each mod item
-        mods.forEach((m, i) => {
-            const d = document.createElement('div');
-            d.className = 'mod-item';
-            d.draggable = true;
-            d.dataset.wid = m.wid;
-            d.innerHTML = `
-                <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
-                <div style="display:flex; gap:5px;">
-                    <button class="edit-btn" style="background:var(--btn); padding:4px 10px;">✎</button>
-                    <button class="rmv" style="background:var(--danger); padding:4px 10px;">X</button>
-                </div>
-            `;
-
-            // Edit Button Logic
-            d.querySelector('.edit-btn').onclick = (e) => {
-                e.stopPropagation();
-                const label = d.querySelector('.mod-id-label');
-                const input = document.createElement('input');
-                input.className = 'edit-input';
-                input.value = m.name;
-                input.onblur = () => { 
-                    m.name = input.value.trim(); 
-                    saveToDisk(); 
-                    render(); 
+            mods.forEach((m, i) => {
+                const d = document.createElement('div');
+                d.className = 'mod-item';
+                d.draggable = true;
+                d.dataset.wid = m.wid;
+                d.innerHTML = `<span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span><div style="display:flex; gap:5px;"><button class="edit-btn">✎</button><button class="rmv" style="background:var(--danger)">X</button></div>`;
+                
+                d.querySelector('.edit-btn').onclick = (e) => {
+                    e.stopPropagation();
+                    const label = d.querySelector('.mod-id-label');
+                    const input = document.createElement('input');
+                    input.className = 'edit-input';
+                    input.value = m.name;
+                    input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
+                    input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
+                    label.replaceWith(input);
+                    input.focus();
                 };
-                input.onkeydown = (ev) => { if (ev.key === 'Enter') input.blur(); };
-                label.replaceWith(input);
-                input.focus();
-            };
-
-            // Remove Individual Button
-            d.querySelector('.rmv').onclick = (e) => {
-                e.stopPropagation();
-                mods.splice(i, 1);
-                saveToDisk();
-                render();
-            };
-
-            // Drag and Drop State
-            d.ondragstart = () => {
-                d.classList.add('dragging');
-                draggingWID = m.wid;
-                updateOut();
-            };
-            d.ondragend = () => {
-                d.classList.remove('dragging');
-                draggingWID = null;
-                updateOut();
-            };
-
-            list.appendChild(d);
-        });
-    } else {
-        list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px;">No mods added yet. Search above to start!</div>`;
+                d.querySelector('.rmv').onclick = () => { mods.splice(i, 1); saveToDisk(); render(); };
+                d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; updateOut(); };
+                d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
+                list.appendChild(d);
+            });
+        }
+        updateOut();
     }
-    updateOut();
-}
 
     function updateOut() {
         const outW = document.getElementById('outW');
         const outM = document.getElementById('outM');
         if (!mods.length) { outW.innerHTML = ''; outM.innerHTML = ''; return; }
-
-        // Build Workshop String
-        const wStr = mods.map(m => {
-            return (m.wid === draggingWID) ? `<span class="highlight-text">${m.wid}</span>` : m.wid;
-        }).join(';');
-
-        // Build Mods String
+        const wStr = mods.map(m => (m.wid === draggingWID) ? `<span class="highlight-text">${m.wid}</span>` : m.wid).join(';');
         const mStr = mods.map(m => {
-            const subMods = m.name.split(';');
-            const formatted = subMods.map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
-            return (m.wid === draggingWID) ? `<span class="highlight-text">${formatted}</span>` : formatted;
+            const names = m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
+            return (m.wid === draggingWID) ? `<span class="highlight-text">${names}</span>` : names;
         }).join(';');
-
         outW.innerHTML = `WorkshopItems=${wStr}`;
         outM.innerHTML = `Mods=${mStr}`;
     }
@@ -362,11 +235,10 @@ function render() {
         const afterElement = getDragAfterElement(list, e.clientY);
         if (afterElement == null) list.appendChild(dragging);
         else list.insertBefore(dragging, afterElement);
-        
         const currentItems = [...document.querySelectorAll('.mod-item')];
         mods = currentItems.map(item => mods.find(m => m.wid === item.dataset.wid));
         saveToDisk();
-        updateOut(); // Highlight persists because draggingWID is still active!
+        updateOut();
     });
 
     function getDragAfterElement(container, y) {
@@ -386,44 +258,27 @@ function render() {
         });
     }
 
-function showResults(data) {
-    const container = document.getElementById('input-container');
-    const old = document.querySelector('.search-results-list');
-    if (old) old.remove();
-
-    const list = document.createElement('div');
-    list.className = 'search-results-list';
-    
-    // Header with a clean "Close" button
-    list.innerHTML = `
-        <div style="padding:10px; background:#111; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #444;">
-            <span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span>
-            <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:bold;">✕</button>
-        </div>`;
-
-    data.forEach(item => {
-        const b = document.createElement('button');
-        b.className = 'search-item-btn';
-        
-        // We clean the title one last time to remove any stray "ID:" or "Learn More" 
-        const cleanTitle = item.title.replace(/ID:|Learn More/gi, '').trim();
-        
-        b.innerHTML = `<b>${cleanTitle}</b><small>Workshop ID: ${item.wid}</small>`;
-        
-        b.onclick = async () => {
-            const details = await getDetails(item.wid);
-            if (details) addModToList(details);
-            list.remove();
-            document.getElementById('mainInput').value = '';
-        };
-        list.appendChild(b);
-    });
-    container.appendChild(list);
-}
+    function showResults(data) {
+        const container = document.getElementById('input-container');
+        const old = document.querySelector('.search-results-list');
+        if (old) old.remove();
+        const list = document.createElement('div');
+        list.className = 'search-results-list';
+        list.innerHTML = `<div style="padding:10px; background:#111; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #444;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span><button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button></div>`;
+        data.forEach(item => {
+            const b = document.createElement('button');
+            b.className = 'search-item-btn';
+            b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
+            b.onclick = async () => {
+                const details = await getDetails(item.wid);
+                if (details) addModToList(details);
+                list.remove();
+            };
+            list.appendChild(b);
+        });
+        container.appendChild(list);
+    }
 })();
 </script>
 </body>
-
 </html>
-
-
