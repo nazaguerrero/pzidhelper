@@ -176,61 +176,67 @@
     }
 
 async function getDetails(id) {
-        try {
-            const status = document.getElementById('status');
-            const fd = new FormData();
-            fd.append('itemcount', '1');
-            fd.append('publishedfileids[0]', id);
-            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-            const j = await r.json();
-            const d = j?.response?.publishedfiledetails?.[0];
+    try {
+        const status = document.getElementById('status');
+        const fd = new FormData();
+        fd.append('itemcount', '1');
+        fd.append('publishedfileids[0]', id);
+        
+        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+        const j = await r.json();
+        const d = j?.response?.publishedfiledetails?.[0];
+        
+        if (!d || d.result !== 1) {
+            status.textContent = "❌ Workshop item not found.";
+            return null;
+        }
+
+        const description = d.description || "";
+        const title = d.title || "";
+
+        // 1. Capture all "Mod ID:" matches
+        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+        
+        // 2. Strict Filter
+        const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy', 'modding_policy'];
+        let validIDs = [];
+        let junkDetected = "";
+
+        matches.forEach(m => {
+            const idText = m[1].split('\n')[0].trim();
+            // Check if the ID text itself contains junk
+            const isJunk = junkWords.some(word => idText.toLowerCase().includes(word));
             
-            if (!d || d.result !== 1) {
-                status.textContent = "❌ Workshop item not found.";
-                return null;
+            if (isJunk) {
+                junkDetected = idText;
+            } else if (idText.length > 0) {
+                validIDs.push(idText);
             }
+        });
 
-            const description = d.description || "";
-            const title = d.title || "";
-
-            // 1. Find all "Mod ID:" strings
-            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-            
-            // 2. Separate valid IDs from "Policy" junk
-            const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
-            let validIDs = [];
-            let junkFound = [];
-
-            matches.forEach(m => {
-                const idText = m[1].split('\n')[0].trim();
-                if (junkWords.some(word => idText.toLowerCase().includes(word))) {
-                    junkFound.push(idText);
-                } else if (idText.length > 0) {
-                    validIDs.push(idText);
-                }
-            });
-
-            // 3. THE GATEKEEPER: Block if only junk is found
-            if (validIDs.length === 0 && junkFound.length > 0) {
-                status.innerHTML = `<span style="color:#ff4444; font-weight:bold;">⚠️ BLOCKED: Only "${junkFound[0]}" detected. Please use the ✎ button to add the real ID manually or check the mod URL.</span>`;
-                return null; // This prevents the mod from being added to the 'mods' array
-            }
-
-            // 4. Finalize IDs (Remove duplicates like in Yanghu)
-            let uniqueIDs = [...new Set(validIDs)];
-            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            
-            // 5. Map Keywords
-            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
-
-            status.innerHTML = `<span style="color:var(--success)">✅ Added: ${uniqueIDs[0] || "New Mod"}</span>`;
-            return { wid: id, name: finalID, isMap: isMapKeywords };
-
-        } catch (e) { 
-            document.getElementById('status').textContent = "⚠️ Error connecting to Steam.";
+        // 3. THE BLOCKER: If we only found junk, refuse to add it.
+        if (validIDs.length === 0 && junkDetected !== "") {
+            status.innerHTML = `<span style="color:#ff4444; font-weight:bold;">⚠️ BLOCKED: "${junkDetected}" is a policy, not an ID. Please use the ✎ button to add the real ID manually.</span>`;
             return null; 
         }
+
+        // 4. Clean and Unique (Fixes Yanghu double-entry)
+        let uniqueIDs = [...new Set(validIDs)];
+        
+        // Fallback: If no ID found at all, use cleaned Title
+        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+        
+        // 5. Advanced Map Detection
+        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell|tile|coordinates/i.test(description + title);
+
+        status.innerHTML = `<span style="color:var(--success)">✅ Added: ${uniqueIDs[0] || "New Mod"}</span>`;
+        return { wid: id, name: finalID, isMap: isMapKeywords };
+
+    } catch (e) { 
+        document.getElementById('status').textContent = "⚠️ Steam Connection Error.";
+        return null; 
     }
+}
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -372,6 +378,7 @@ function render() {
 </script>
 </body>
 </html>
+
 
 
 
