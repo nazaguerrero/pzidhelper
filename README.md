@@ -1,9 +1,11 @@
 # 🧟 Project Zomboid B42 ID Helper (Alpha)
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live_Now-green?style=for-the-badge&logo=vercel)](https://nazaguerrero.github.io/pzidhelper//)
-[![Version](https://img.shields.io/badge/Version-Alpha_1.0-orange)](https://github.com/YOUR_USERNAME/YOUR_REPO)
+[![Version](https://img.shields.io/badge/Version-Alpha_1.0-orange)](https://github.com/nazaguerrero/pzidhelper)
 
 A specialized tool for Project Zomboid server admins to generate clean `servertest.ini` configurations with full support for **Build 42 backslash formatting**.
+
+> ### 🚀 [Click here to open the Live Demo Page](https://nazaguerrero.github.io/pzidhelper//)
 
 ## 📸 Preview
 ![Tool Screenshot](https://github.com/nazaguerrero/pzidhelper/blob/main/IdToolb42.png)
