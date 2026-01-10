@@ -176,39 +176,45 @@
     }
 
     async function getDetails(id) {
-    try {
-        const fd = new FormData();
-        fd.append('itemcount', '1');
-        fd.append('publishedfileids[0]', id);
-        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-        const j = await r.json();
-        const d = j?.response?.publishedfiledetails?.[0];
-        if (!d || d.result !== 1) return null;
+        try {
+            const fd = new FormData();
+            fd.append('itemcount', '1');
+            fd.append('publishedfileids[0]', id);
+            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+            const j = await r.json();
+            const d = j?.response?.publishedfiledetails?.[0];
+            if (!d || d.result !== 1) return null;
 
-        const description = d.description || "";
-        const title = d.title || "";
+            const description = d.description || "";
+            const title = d.title || "";
 
-        // 1. Find all "Mod ID: xxxx" matches
-        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-        
-        // 2. Filter out junk and CLEAN the IDs
-        const blacklist = ['policy', 'permission', 'license', 'legal', 'credit'];
-        let foundIDs = matches
-            .map(m => m[1].split('\n')[0].trim()) // Ensure we only get the first line of the match
-            .filter(name => name.length > 0 && !blacklist.some(word => name.toLowerCase().includes(word)));
+            // 1. Precise Regex: Look for "Mod ID:" but NOT "ModdingPolicy"
+            // This regex ensures we only capture the actual alphanumeric ID after the colon.
+            const idRegex = /^(?!.*ModdingPolicy)mod\s*id\s*:\s*([a-zA-Z0-9_\-.]+)/gim;
+            const matches = [...description.matchAll(idRegex)];
+            
+            // 2. Filter and Clean
+            const blacklist = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
+            let foundIDs = matches
+                .map(m => m[1].trim()) 
+                .filter(name => name.length > 0 && !blacklist.some(word => name.toLowerCase().includes(word)));
 
-        // 3. REMOVE DUPLICATES (Fixes Yanghu double-entry)
-        let uniqueIDs = [...new Set(foundIDs)];
+            // 3. Unique Filter (Yanghu fix)
+            let uniqueIDs = [...new Set(foundIDs)];
 
-        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-        
-        // Auto-detect Map
-        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|folder/i.test(description + title);
+            // Fallback to title if no ID found
+            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+            
+            // Keyword detection for Maps
+            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|cell|town/i.test(description + title);
 
-        document.getElementById('status').textContent = "Added: " + (uniqueIDs[0] || "Mod");
-        return { wid: id, name: finalID, isMap: isMapKeywords };
-    } catch (e) { return null; }
-}
+            document.getElementById('status').textContent = "Added: " + (uniqueIDs[0] || "New Mod");
+            return { wid: id, name: finalID, isMap: isMapKeywords };
+        } catch (e) { 
+            console.error(e);
+            return null; 
+        }
+    }
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -350,6 +356,7 @@ function render() {
 </script>
 </body>
 </html>
+
 
 
 
