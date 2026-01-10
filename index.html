@@ -264,4 +264,79 @@
                 <div style="display:flex; gap:8px; align-items:center;">
                     <label style="font-size:10px; color:#888;">Map?</label>
                     <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
-                    <button type
+                    <button type="button" class="edit-btn" style="background:var(--btn); padding:5px 10px;">✎</button>
+                    <button type="button" class="rmv-btn" style="background:var(--danger); padding:5px 10px;">X</button>
+                </div>
+            `;
+            d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
+            d.querySelector('.edit-btn').onclick = (e) => {
+                e.stopPropagation();
+                const label = d.querySelector('.mod-id-label');
+                const input = document.createElement('input');
+                input.className = 'edit-input';
+                input.value = m.name;
+                input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
+                input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
+                label.replaceWith(input);
+                input.focus();
+            };
+            d.querySelector('.rmv-btn').onclick = (e) => { e.stopPropagation(); mods.splice(i, 1); saveToDisk(); render(); };
+            d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; };
+            d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
+            list.appendChild(d);
+        });
+        updateOut();
+    }
+
+    function updateOut() {
+        const outW = document.getElementById('outW');
+        const outM = document.getElementById('outM');
+        const outMap = document.getElementById('outMap');
+        if (!mods.length) { 
+            outW.textContent = ''; outM.textContent = ''; outMap.textContent = 'Map=Muldraugh, KY'; 
+            return; 
+        }
+        const wStr = mods.map(m => m.wid).join(';');
+        const mStr = mods.map(m => m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';')).join(';');
+        const mapMods = mods.filter(m => m.isMap).map(m => m.name.split(';')[0].trim());
+        mapMods.push("Muldraugh, KY");
+        outW.textContent = `WorkshopItems=${wStr}`;
+        outM.textContent = `Mods=${mStr}`;
+        outMap.textContent = `Map=${mapMods.join(';')}`;
+    }
+
+    function copyText(id) {
+        const el = document.getElementById(id);
+        navigator.clipboard.writeText(el.textContent).then(() => {
+            el.classList.add('copy-flash');
+            setTimeout(() => el.classList.remove('copy-flash'), 600);
+        });
+    }
+
+    // Drag and Drop
+    document.getElementById('modlist').addEventListener('dragover', e => {
+        e.preventDefault();
+        const dragging = document.querySelector('.dragging');
+        if (!dragging) return;
+        const list = document.getElementById('modlist');
+        const afterElement = getDragAfterElement(list, e.clientY);
+        if (afterElement == null) list.appendChild(dragging);
+        else list.insertBefore(dragging, afterElement);
+        const currentItems = [...document.querySelectorAll('.mod-item')];
+        mods = currentItems.map(item => mods.find(m => String(m.wid) === String(item.dataset.wid)));
+        saveToDisk();
+        updateOut();
+    });
+
+    function getDragAfterElement(container, y) {
+        const draggables = [...container.querySelectorAll('.mod-item:not(.dragging)')];
+        return draggables.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+})();
+</script>
+</body>
+</html>
