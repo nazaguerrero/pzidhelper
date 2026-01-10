@@ -7,7 +7,7 @@
     <style>
         :root {
             --bg: #111; --text: #eee; --accent: #ff6600; --card: #222;
-            --btn: #444; --btn-hover: #666; --danger: #900; --success: #006600; --output: #0f0;
+            --btn: #444; --btn-hover: #666; --danger: #cc0000; --success: #008800; --output: #0f0;
             --warning: #ffcc00;
         }
         * { box-sizing: border-box; }
@@ -28,7 +28,7 @@
         button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--btn); color: #fff; font-size: 1rem; transition: background 0.2s; }
         button:hover { background: var(--btn-hover); }
         
-        #status { color: var(--warning); margin-bottom: 15px; min-height: 22px; font-size: 0.9rem; font-weight: bold; text-align: center;}
+        #status { margin-bottom: 15px; min-height: 40px; font-size: 0.9rem; text-align: center; display: flex; align-items: center; justify-content: center; }
         
         .list-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #444; margin-bottom: 10px; }
         .count-badge { background: var(--accent); color: #000; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.85rem; margin-left: 8px; }
@@ -42,38 +42,24 @@
         .edit-input { background: #000; color: var(--output); border: 1px solid var(--accent); padding: 4px; width: 250px; }
 
         .search-results-list {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: #222;
-    border: 2px solid var(--accent);
-    border-radius: 4px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.9);
-    max-height: 400px;
-    overflow-y: auto;
-    z-index: 10000;
-}
+            position: absolute; top: 100%; left: 0; right: 0; background: #222;
+            border: 2px solid var(--accent); border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+            max-height: 400px; overflow-y: auto; z-index: 10000;
+        }
         .search-item-btn {
-    width: 100%;
-    text-align: left;
-    padding: 12px 15px;
-    background: #222;
-    color: #eee;
-    border: none;
-    border-bottom: 1px solid #333;
-    cursor: pointer;
-    display: block; /* Ensures they stack vertically */
-    transition: background 0.2s;
-}
+            width: 100%; text-align: left; padding: 12px 15px; background: #222;
+            color: #eee; border: none; border-bottom: 1px solid #333; cursor: pointer; display: block;
+        }
         .search-item-btn:hover { background: #333; border-left: 4px solid var(--accent); }
-        .search-item-btn b { color: var(--accent); font-size: 1.1rem; }
+        .search-item-btn b { color: var(--accent); font-size: 1.1rem; display: block; }
 
         pre { background: #000; color: var(--output); padding: 15px; border-radius: 6px; border: 1px solid #333; white-space: pre-wrap; word-break: break-all; font-family: monospace; }
-        .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; box-shadow: 0 0 10px var(--accent); }
+        .highlight-text { background-color: var(--accent); color: #000; font-weight: bold; border-radius: 2px; padding: 0 2px; }
 
         @keyframes flash-success { 0% { background-color: #004400; } 100% { background-color: #000000; } }
         .copy-flash { animation: flash-success 0.6s ease-out !important; }
+        
+        .warn-box { background: #400; color: #fff; padding: 10px; border: 1px solid #f00; border-radius: 4px; font-weight: bold; width: 100%; }
     </style>
 </head>
 <body>
@@ -93,20 +79,21 @@
     <div id="modlist"></div>
 
     <div style="margin-top: 30px;">
-    <strong>WorkshopItems=</strong>
-    <pre id="outW"></pre>
-    <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems</button>
-   
-    <div style="margin-top: 20px;">
-        <strong>Mods=</strong>
-        <pre id="outM"></pre>
-        <button id="copyM" style="background:var(--success)">📋 Copy Mods</button>
-    </div>
+        <strong>WorkshopItems=</strong>
+        <pre id="outW"></pre>
+        <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems</button>
+       
+        <div style="margin-top: 20px;">
+            <strong>Mods=</strong>
+            <pre id="outM"></pre>
+            <button id="copyM" style="background:var(--success)">📋 Copy Mods</button>
+        </div>
 
-    <div style="margin-top: 20px;">
-        <strong>Map=</strong>
-        <pre id="outMap"></pre>
-        <button id="copyMap" style="background:var(--success)">📋 Copy Map Line</button>
+        <div style="margin-top: 20px;">
+            <strong>Map=</strong>
+            <pre id="outMap"></pre>
+            <button id="copyMap" style="background:var(--success)">📋 Copy Map Line</button>
+        </div>
     </div>
 </div>
 
@@ -152,7 +139,7 @@
 
     async function fetchInfo(val) {
         const status = document.getElementById('status');
-        status.textContent = "Searching Steam...";
+        status.innerHTML = "Searching Steam...";
         let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
         
         if (!wid) {
@@ -161,13 +148,12 @@
                 const r = await fetch(`${PROXY}/steam-search?${p}`);
                 const t = await r.text();
                 const results = [];
-                // More precise regex to avoid capturing UI text as Title
                 const searchRegex = /sharedfiles\/filedetails\/\?id=(\d+)[\s\S]*?workshopItemTitle[^>]*>([\s\S]*?)<\/div>/gi;
                 let m;
                 while ((m = searchRegex.exec(t)) !== null && results.length < 5) {
                     results.push({ wid: m[1], title: m[2].replace(/<[^>]+>/g, '').replace(/ID:|Learn More/gi, '').trim() });
                 }
-                if (results.length === 0) { status.textContent = "No results found for word search."; return null; }
+                if (results.length === 0) { status.textContent = "No results found."; return null; }
                 showResults(results);
                 return null;
             } catch (e) { status.textContent = "Search failed."; return null; }
@@ -175,66 +161,50 @@
         return await getDetails(wid);
     }
 
-async function getDetails(id) {
-    try {
-        const status = document.getElementById('status');
-        const fd = new FormData();
-        fd.append('itemcount', '1');
-        fd.append('publishedfileids[0]', id);
-        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-        const j = await r.json();
-        const d = j?.response?.publishedfiledetails?.[0];
-        
-        if (!d || d.result !== 1) {
-            status.textContent = "❌ Workshop item not found.";
-            return null;
-        }
+    async function getDetails(id) {
+        try {
+            const status = document.getElementById('status');
+            const fd = new FormData();
+            fd.append('itemcount', '1');
+            fd.append('publishedfileids[0]', id);
+            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+            const j = await r.json();
+            const d = j?.response?.publishedfiledetails?.[0];
+            
+            if (!d || d.result !== 1) return null;
 
-        const description = d.description || "";
-        const title = d.title || "";
+            const description = d.description || "";
+            const title = d.title || "";
 
-        // 1. Capture all "Mod ID:" strings
-        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-        
-        // 2. Strict Junk Filter (Added 'version' and 'legal' to catch Greenleaf's specific text)
-        const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy', 'version'];
-        let validIDs = [];
-        let junkFound = [];
+            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+            const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy', 'version'];
+            
+            let validIDs = [];
+            let junkDetected = "";
 
-        matches.forEach(m => {
-            const idText = m[1].split('\n')[0].trim();
-            if (junkWords.some(word => idText.toLowerCase().includes(word))) {
-                junkFound.push(idText);
-            } else if (idText.length > 0) {
-                validIDs.push(idText);
+            matches.forEach(m => {
+                const idText = m[1].split('\n')[0].trim();
+                if (junkWords.some(word => idText.toLowerCase().includes(word))) {
+                    junkDetected = idText;
+                } else if (idText.length > 0) {
+                    validIDs.push(idText);
+                }
+            });
+
+            // BLOCKING LOGIC
+            if (validIDs.length === 0 && (junkDetected !== "" || description.toLowerCase().includes("moddingpolicy"))) {
+                status.innerHTML = `<div class="warn-box">⚠️ BLOCKED: Only Policy/Junk found ("${junkDetected || 'ModdingPolicy'}"). Please use ✎ to add the real ID manually.</div>`;
+                return null; 
             }
-        });
 
-        // 3. THE GATEKEEPER: Stop the process if ONLY junk is found
-        if (validIDs.length === 0 && junkFound.length > 0) {
-            status.innerHTML = `<div style="background:#500; padding:10px; border:1px solid red; border-radius:4px; color:#fff; font-size:12px;">
-                <strong>⚠️ BLOCKED: Junk ID Detected</strong><br>
-                The scraper only found "${junkFound[0]}".<br>
-                Please use the ✎ button to enter the real ID manually.
-            </div>`;
-            return null; // This prevents the mod from being added to the list
-        }
+            let uniqueIDs = [...new Set(validIDs)];
+            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
 
-        // 4. Finalize IDs and remove duplicates (Yanghu fix)
-        let uniqueIDs = [...new Set(validIDs)];
-        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-        
-        // 5. Advanced Map Detection
-        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell|tile/i.test(description + title);
-
-        status.innerHTML = `<span style="color:var(--success)">✅ Added: ${uniqueIDs[0] || "New Mod"}</span>`;
-        return { wid: id, name: finalID, isMap: isMapKeywords };
-
-    } catch (e) { 
-        document.getElementById('status').textContent = "⚠️ Error connecting to Steam.";
-        return null; 
+            status.innerHTML = `<span style="color:var(--success)">✅ Added: ${uniqueIDs[0] || "Mod"}</span>`;
+            return { wid: id, name: finalID, isMap: isMapKeywords };
+        } catch (e) { return null; }
     }
-}
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -244,86 +214,6 @@ async function getDetails(id) {
         }
     }
 
-function render() {
-    const list = document.getElementById('modlist');
-    list.innerHTML = '';
-    if (mods.length === 0) {
-        list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px;">No mods added yet.</div>`;
-        updateOut();
-        return;
-    }
-
-    const header = document.createElement('div');
-    header.className = 'list-header';
-    header.innerHTML = `<div><h3 style="display:inline;">Added Mods</h3><span class="count-badge">${mods.length}</span></div><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
-    list.appendChild(header);
-    document.getElementById('clrBtn').onclick = () => { if(confirm("Clear everything?")) { mods = []; saveToDisk(); render(); } };
-
-    mods.forEach((m, i) => {
-        const d = document.createElement('div');
-        d.className = 'mod-item';
-        d.draggable = true;
-        d.dataset.wid = m.wid;
-        
-        // We use stopPropagation on buttons so they don't trigger the "Drag" event
-        d.innerHTML = `
-            <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <label style="font-size:10px; color:#888;">Map?</label>
-                <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
-                <button class="edit-btn" style="background:var(--btn); padding:5px 10px;">✎</button>
-                <button class="rmv-btn" style="background:var(--danger); padding:5px 10px;">X</button>
-            </div>
-        `;
-
-        d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
-        
-        d.querySelector('.edit-btn').onclick = (e) => {
-            e.stopPropagation(); // Stops drag interference
-            const label = d.querySelector('.mod-id-label');
-            const input = document.createElement('input');
-            input.className = 'edit-input';
-            input.value = m.name;
-            input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
-            input.onkeydown = (ev) => { if(ev.key === 'Enter') input.blur(); };
-            label.replaceWith(input);
-            input.focus();
-        };
-
-        d.querySelector('.rmv-btn').onclick = (e) => {
-            e.stopPropagation(); // Stops drag interference
-            mods.splice(i, 1);
-            saveToDisk();
-            render();
-        };
-
-        d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; };
-        d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
-        list.appendChild(d);
-    });
-    updateOut();
-}
-
-    function updateOut() {
-        const outW = document.getElementById('outW');
-        const outM = document.getElementById('outM');
-        const outMap = document.getElementById('outMap');
-        if (!mods.length) { outW.innerHTML = ''; outM.innerHTML = ''; outMap.innerHTML = 'Map=Muldraugh, KY'; return; }
-
-        const wStr = mods.map(m => (m.wid === draggingWID) ? `<span class="highlight-text">${m.wid}</span>` : m.wid).join(';');
-        const mStr = mods.map(m => {
-            const names = m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
-            return (m.wid === draggingWID) ? `<span class="highlight-text">${names}</span>` : names;
-        }).join(';');
-
-        const mapMods = mods.filter(m => m.isMap).map(m => m.name.split(';')[0].trim());
-        mapMods.push("Muldraugh, KY");
-        
-        outW.innerHTML = `WorkshopItems=${wStr}`;
-        outM.innerHTML = `Mods=${mStr}`;
-        outMap.innerHTML = `Map=${mapMods.join(';')}`;
-    }
-
     function showResults(data) {
         const container = document.getElementById('input-container');
         const old = document.querySelector('.search-results-list');
@@ -331,59 +221,47 @@ function render() {
         const list = document.createElement('div');
         list.className = 'search-results-list';
         list.innerHTML = `<div style="padding:10px; background:#111; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #444;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span><button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button></div>`;
+        
         data.forEach(item => {
             const b = document.createElement('button');
             b.className = 'search-item-btn';
             b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
-            b.onclick = async () => { const details = await getDetails(item.wid); if (details) addModToList(details); list.remove(); document.getElementById('mainInput').value = ''; };
+            b.onclick = async () => { 
+                const details = await getDetails(item.wid); 
+                if (details) { // Only add if it passed the Gatekeeper!
+                    addModToList(details); 
+                    list.remove(); 
+                    document.getElementById('mainInput').value = ''; 
+                }
+            };
             list.appendChild(b);
         });
         container.appendChild(list);
     }
 
-    // Drag-over Logic
-    document.getElementById('modlist').addEventListener('dragover', e => {
-        e.preventDefault();
-        const dragging = document.querySelector('.dragging');
-        if (!dragging) return;
+    function render() {
         const list = document.getElementById('modlist');
-        const afterElement = getDragAfterElement(list, e.clientY);
-        if (afterElement == null) list.appendChild(dragging);
-        else list.insertBefore(dragging, afterElement);
-        const currentItems = [...document.querySelectorAll('.mod-item')];
-        mods = currentItems.map(item => mods.find(m => String(m.wid) === String(item.dataset.wid)));
-        saveToDisk();
-        updateOut();
-    });
+        list.innerHTML = '';
+        if (mods.length === 0) {
+            list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px;">No mods added yet.</div>`;
+            updateOut();
+            return;
+        }
 
-    function getDragAfterElement(container, y) {
-        const draggables = [...container.querySelectorAll('.mod-item:not(.dragging)')];
-        return draggables.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
-    }
+        const header = document.createElement('div');
+        header.className = 'list-header';
+        header.innerHTML = `<div><h3 style="display:inline;">Added Mods</h3><span class="count-badge">${mods.length}</span></div><button id="clrBtn" style="background:var(--danger); padding:5px 10px; font-size:12px;">Clear All</button>`;
+        list.appendChild(header);
+        document.getElementById('clrBtn').onclick = () => { if(confirm("Clear everything?")) { mods = []; saveToDisk(); render(); } };
 
-    function copyText(id) {
-        const el = document.getElementById(id);
-        navigator.clipboard.writeText(el.textContent).then(() => {
-            el.classList.add('copy-flash');
-            setTimeout(() => el.classList.remove('copy-flash'), 600);
-        });
-    }
-})();
-</script>
-</body>
-</html>
-
-
-
-
-
-
-
-
-
-
-
+        mods.forEach((m, i) => {
+            const d = document.createElement('div');
+            d.className = 'mod-item';
+            d.draggable = true;
+            d.dataset.wid = m.wid;
+            d.innerHTML = `
+                <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label style="font-size:10px; color:#888;">Map?</label>
+                    <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
+                    <button type
