@@ -219,37 +219,42 @@
         } catch (e) { return null; }
     }
 
-    function showResults(data) {
-        const container = document.getElementById('input-container');
-        const old = document.querySelector('.search-results-list');
-        if (old) old.remove();
-        
-        const list = document.createElement('div');
-        list.className = 'search-results-list';
-        // FIXED: Added the X button back into the header
-        list.innerHTML = `
-            <div style="padding:10px; background:#111; border-bottom:1px solid #444; display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span>
-                <button type="button" onclick="this.closest('.search-results-list').remove()" style="background:none; border:none; color:#f44; cursor:pointer; font-weight:bold; font-size:16px;">✕</button>
-            </div>`;
-        
-        data.forEach(item => {
-            const b = document.createElement('button');
-            b.className = 'search-item-btn';
-            b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
-            b.onclick = async (e) => {
-                e.stopPropagation(); 
-                const details = await getDetails(item.wid, false);
-                if (details) {
-                    addModToList(details); 
-                    list.remove(); 
-                    document.getElementById('mainInput').value = ''; 
-                }
-            };
-            list.appendChild(b);
-        });
-        container.appendChild(list);
-    }
+function showResults(data) {
+    const container = document.getElementById('input-container');
+    const old = document.querySelector('.search-results-list');
+    if (old) old.remove();
+    
+    const list = document.createElement('div');
+    list.className = 'search-results-list';
+    list.innerHTML = `
+        <div style="padding:10px; background:#111; border-bottom:1px solid #444; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span>
+            <button type="button" onclick="this.closest('.search-results-list').remove()" style="background:none; border:none; color:#f44; cursor:pointer; font-weight:bold; font-size:16px;">✕</button>
+        </div>`;
+    
+    data.forEach(item => {
+        const b = document.createElement('button');
+        b.className = 'search-item-btn';
+        b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
+        b.onclick = async (e) => {
+            e.stopPropagation(); 
+            
+            // 1. Remove the list immediately so the user can see the status bar
+            list.remove(); 
+            
+            // 2. Clear the input so the user knows the action was received
+            document.getElementById('mainInput').value = ''; 
+
+            // 3. Process the mod (this will show the Red Alert or Green Success)
+            const details = await getDetails(item.wid, false);
+            if (details) {
+                addModToList(details); 
+            }
+        };
+        list.appendChild(b);
+    });
+    container.appendChild(list);
+}
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -366,6 +371,7 @@
 </script>
 </body>
 </html>
+
 
 
 
