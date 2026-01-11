@@ -62,4 +62,4 @@ We've optimized the tool for large mod lists (30+ items).
 - [x] **Policy Guard**: Automatic disclaimer/block when "Modding Policy" files are detected.
 - [x] **Enhanced UI**: Custom scrollbars and glowing highlights for searched items.
 
-*Created for the Project Zomboid Admin Community.*
+*Created for the Project Zomboid Community with the help of "google.gemini" I'm not a programmer, this idea originated as a tool for personal use & fun project, which I later wanted to share with the community..Apologies if something isn't done correctly*
