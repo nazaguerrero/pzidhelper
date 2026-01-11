@@ -31,43 +31,48 @@
         #status { margin-bottom: 15px; min-height: 40px; font-size: 0.9rem; text-align: center; display: flex; align-items: center; justify-content: center; }
         
         /* SCROLLABLE LIST STYLES */
-        /* Ensure the scrollbox has a clean start */
-#modlist { 
-    max-height: 500px; 
-    overflow-y: auto; 
-    border: 1px solid #333; 
-    background: rgba(0,0,0,0.2); 
-    border-radius: 4px;
-    position: relative; /* Context for sticky header */
-}
+        #modlist { 
+            max-height: 500px; 
+            overflow-y: auto; 
+            border: 1px solid #333; 
+            background: rgba(0,0,0,0.2); 
+            border-radius: 4px;
+            position: relative;
+            scroll-behavior: smooth;
+        }
         #modlist::-webkit-scrollbar { width: 8px; }
         #modlist::-webkit-scrollbar-track { background: #111; }
         #modlist::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
         #modlist::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-        /* Update the header to stay at the top */
-.list-header { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    padding: 10px; 
-    border-bottom: 1px solid #444; 
-    margin-bottom: 0; /* Remove margin so it sits flush */
-    
-    /* THE TRICK: Sticky positioning */
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: #1a1a1a; /* Solid color matches your card/bg */
-}
+        .list-header { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 10px; border-bottom: 1px solid #444; 
+            position: sticky; top: 0; z-index: 10; background: #1a1a1a;
+        }
         .count-badge { background: var(--accent); color: #000; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.85rem; margin-left: 8px; }
 
+        /* MOD ITEM & HIGHLIGHT */
         .mod-item {
-            background: var(--card); padding: 12px; margin: 8px 0; border-radius: 6px;
+            background: var(--card); padding: 12px; margin: 8px; border-radius: 6px;
             display: flex; justify-content: space-between; align-items: center;
-            cursor: grab; border: 1px solid #333; transition: all 0.1s ease;
+            cursor: grab; border: 1px solid #333; transition: all 0.3s ease;
         }
         .mod-item.dragging { opacity: 0.5; border: 2px solid var(--accent) !important; background: #333; }
+        
+        /* THE SEARCH HIGHLIGHT EFFECT */
+        .search-highlight {
+            border: 2px solid var(--accent) !important;
+            box-shadow: 0 0 15px rgba(255, 102, 0, 0.4);
+            background: #333 !important;
+        }
+
+        .mod-index {
+            background: #111; color: var(--accent); font-size: 0.75rem; 
+            padding: 2px 6px; border-radius: 4px; margin-right: 10px;
+            min-width: 28px; text-align: center; border: 1px solid #444;
+        }
+
         .edit-input { background: #000; color: var(--output); border: 1px solid var(--accent); padding: 4px; width: 250px; }
 
         .search-results-list {
@@ -87,8 +92,6 @@
 
         @keyframes flash-success { 0% { background-color: #004400; } 100% { background-color: #000000; } }
         .copy-flash { animation: flash-success 0.6s ease-out !important; }
-        
-        .warn-box { background: #400; color: #fff; padding: 10px; border: 1px solid #f00; border-radius: 4px; font-weight: bold; width: 100%; }
         
         #localFilter {
             width: 100%; padding: 10px; background: #111; border: 1px solid #444; 
@@ -111,7 +114,7 @@
     </div>
     <div id="status">Ready.</div>
 
-    <input type="text" id="localFilter" placeholder="🔍 Filter through your added mods..." />
+    <input type="text" id="localFilter" placeholder="🔍 Find & Highlight a mod in your list..." />
     <div id="modlist"></div>
 
     <div style="margin-top: 30px;">
@@ -151,13 +154,24 @@
         document.getElementById('copyM').onclick = () => copyText('outM');
         document.getElementById('copyMap').onclick = () => copyText('outMap');
 
-        // Filter Logic
+        // NEW FILTER LOGIC: Highlight & Scroll
         document.getElementById('localFilter').oninput = (e) => {
             const term = e.target.value.toLowerCase();
-            document.querySelectorAll('.mod-item').forEach(item => {
-                const text = item.innerText.toLowerCase();
-                item.style.display = text.includes(term) ? 'flex' : 'none';
-            });
+            const items = document.querySelectorAll('.mod-item');
+            
+            // Remove previous highlights
+            items.forEach(item => item.classList.remove('search-highlight'));
+            
+            if (term.length < 2) return;
+
+            for (const item of items) {
+                if (item.innerText.toLowerCase().includes(term)) {
+                    item.classList.add('search-highlight');
+                    // Scroll it into the middle of the scrollbox
+                    item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    break; // Just highlight the first match
+                }
+            }
         };
 
         document.addEventListener('click', (e) => {
@@ -231,24 +245,13 @@
 
             const description = d.description || "";
             const title = d.title || "";
-            const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy', 'version'];
             const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
             let validIDs = [];
-            let junkFound = [];
 
             matches.forEach(m => {
                 const idText = m[1].split('\n')[0].trim();
-                if (junkWords.some(word => idText.toLowerCase().includes(word))) {
-                    junkFound.push(idText);
-                } else if (idText.length > 0) {
-                    validIDs.push(idText);
-                }
+                if (idText.length > 0) validIDs.push(idText);
             });
-
-            if (!isDirect && validIDs.length === 0 && (junkFound.length > 0 || title.toLowerCase().includes('policy'))) {
-                status.innerHTML = `<div style="background:#600; color:white; padding:8px; border:1px solid red; border-radius:4px;">⚠️ BLOCKED: Search result is a Policy. Use URL to force add.</div>`;
-                return null; 
-            }
 
             let uniqueIDs = [...new Set(validIDs)];
             const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
@@ -285,6 +288,11 @@
             mods.push(obj);
             render();
             saveToDisk();
+            // Scroll to the new item at the bottom
+            setTimeout(() => {
+                const list = document.getElementById('modlist');
+                list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+            }, 100);
         }
     }
 
@@ -294,7 +302,7 @@
         list.innerHTML = '';
         
         if (mods.length === 0) {
-            list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px;">No mods added yet.</div>`;
+            list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px; margin:10px;">No mods added yet.</div>`;
             filter.style.display = 'none';
             updateOut();
             return;
@@ -304,8 +312,15 @@
 
         const header = document.createElement('div');
         header.className = 'list-header';
-        header.innerHTML = `<div><h3 style="display:inline;">Added Mods</h3><span class="count-badge">${mods.length}</span></div><button id="clrBtn" style="background:#900; padding:5px 10px; font-size:12px; color:white; border:none; border-radius:4px; cursor:pointer;">Clear All</button>`;
+        header.innerHTML = `
+            <div><h3 style="display:inline; margin:0;">Added Mods</h3><span class="count-badge">${mods.length}</span></div>
+            <div style="display:flex; gap:8px;">
+                <button id="jumpBottom" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↓ End</button>
+                <button id="clrBtn" style="background:#900; padding:5px 10px; font-size:12px; color:white; border:none; border-radius:4px; cursor:pointer;">Clear All</button>
+            </div>`;
         list.appendChild(header);
+
+        document.getElementById('jumpBottom').onclick = () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
         document.getElementById('clrBtn').onclick = () => { if(confirm("Clear everything?")) { mods = []; saveToDisk(); render(); } };
 
         mods.forEach((m, i) => {
@@ -313,7 +328,19 @@
             d.className = 'mod-item';
             d.draggable = true;
             d.dataset.wid = m.wid;
-            d.innerHTML = `<span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span><div style="display:flex; gap:8px; align-items:center;"><label style="font-size:10px; color:#888;">Map?</label><input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}><button type="button" class="edit-btn" style="background:#444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✎</button><button type="button" class="rmv-btn" style="background:#900; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">X</button></div>`;
+            d.innerHTML = `
+                <span>
+                    <span class="mod-index">${i + 1}</span>
+                    <b class="mod-id-label">${m.name}</b> 
+                    <small style="color:#888;">(${m.wid})</small>
+                </span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label style="font-size:10px; color:#888;">Map?</label>
+                    <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
+                    <button type="button" class="edit-btn" style="background:#444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✎</button>
+                    <button type="button" class="rmv-btn" style="background:#900; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">X</button>
+                </div>`;
+            
             d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
             d.querySelector('.edit-btn').onclick = (e) => {
                 e.stopPropagation();
@@ -343,7 +370,6 @@
             return; 
         }
 
-        // Removed the Labels from the innerHTML output
         const wStr = mods.map(m => (String(m.wid) === String(draggingWID)) ? `<span class="highlight-text">${m.wid}</span>` : m.wid).join(';');
         const mStr = mods.map(m => {
             const names = m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
@@ -374,6 +400,7 @@
         const afterElement = getDragAfterElement(list, e.clientY);
         if (afterElement == null) list.appendChild(dragging);
         else list.insertBefore(dragging, afterElement);
+        
         const currentItems = [...document.querySelectorAll('.mod-item')];
         mods = currentItems.map(item => mods.find(m => String(m.wid) === String(item.dataset.wid)));
         saveToDisk();
@@ -392,4 +419,3 @@
 </script>
 </body>
 </html>
-
