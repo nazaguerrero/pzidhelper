@@ -1,3 +1,14 @@
+## 🚀 Recently Added (Alpha 1.1 - Testing Branch)
+We've optimized the tool for large mod lists (30+ items).
+
+- [x] **Sticky Control Bar**: Keep mod count and "Clear All" visible while scrolling.
+- [x] **Smart Filter**: Search for mods and auto-scroll to their position without losing context.
+- [x] **Index Numbering**: Every mod now has a sequence number (1, 2, 3...) for easier organization.
+- [x] **Top/End Navigation**: Quick-jump buttons to navigate long lists instantly.
+- [x] **INI Alignment**: Reordered output boxes to match `servertest.ini` (Mods > Map > Workshop).
+- [x] **Policy Guard**: Automatic disclaimer/block when "Modding Policy" files are detected.
+- [x] **Enhanced UI**: Custom scrollbars and glowing highlights for searched items.
+
 # 🧟 Project Zomboid B42 ID Helper (Alpha)
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live_Now-green?style=for-the-badge&logo=vercel)](https://nazaguerrero.github.io/pzidhelper//)
