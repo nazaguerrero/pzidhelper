@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PZ B42 ID Helper Pro</title>
+    <title>PZ B42 ID Helper</title>
     <style>
         :root {
             --bg: #111; --text: #eee; --accent: #ff6600; --card: #222;
@@ -30,6 +30,20 @@
         
         #status { margin-bottom: 15px; min-height: 40px; font-size: 0.9rem; text-align: center; display: flex; align-items: center; justify-content: center; }
         
+        /* SCROLLABLE LIST STYLES */
+        #modlist { 
+            max-height: 500px; 
+            overflow-y: auto; 
+            border: 1px solid #333; 
+            padding: 5px; 
+            background: rgba(0,0,0,0.2); 
+            border-radius: 4px;
+        }
+        #modlist::-webkit-scrollbar { width: 8px; }
+        #modlist::-webkit-scrollbar-track { background: #111; }
+        #modlist::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        #modlist::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
         .list-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #444; margin-bottom: 10px; }
         .count-badge { background: var(--accent); color: #000; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.85rem; margin-left: 8px; }
 
@@ -60,6 +74,11 @@
         .copy-flash { animation: flash-success 0.6s ease-out !important; }
         
         .warn-box { background: #400; color: #fff; padding: 10px; border: 1px solid #f00; border-radius: 4px; font-weight: bold; width: 100%; }
+        
+        #localFilter {
+            width: 100%; padding: 10px; background: #111; border: 1px solid #444; 
+            color: #fff; border-radius: 4px; margin-bottom: 10px; display: none;
+        }
     </style>
 </head>
 <body>
@@ -76,13 +95,15 @@
         <button id="addBtn">Add Mod</button>
     </div>
     <div id="status">Ready.</div>
+
+    <input type="text" id="localFilter" placeholder="🔍 Filter through your added mods..." />
     <div id="modlist"></div>
 
     <div style="margin-top: 30px;">
         <strong>WorkshopItems=</strong>
         <pre id="outW"></pre>
         <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems</button>
-       
+        
         <div style="margin-top: 20px;">
             <strong>Mods=</strong>
             <pre id="outM"></pre>
@@ -115,7 +136,15 @@
         document.getElementById('copyM').onclick = () => copyText('outM');
         document.getElementById('copyMap').onclick = () => copyText('outMap');
 
-        // NEW: Click outside to close search results
+        // Filter Logic
+        document.getElementById('localFilter').oninput = (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.mod-item').forEach(item => {
+                const text = item.innerText.toLowerCase();
+                item.style.display = text.includes(term) ? 'flex' : 'none';
+            });
+        };
+
         document.addEventListener('click', (e) => {
             const list = document.querySelector('.search-results-list');
             const inputCont = document.getElementById('input-container');
@@ -153,7 +182,6 @@
     async function fetchInfo(val) {
         const status = document.getElementById('status');
         status.innerHTML = "Searching Steam...";
-        
         let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
         
         if (!wid) {
@@ -172,7 +200,7 @@
                 return null;
             } catch (e) { status.textContent = "Search failed."; return null; }
         }
-        return await getDetails(wid, true); // Direct URL = Filter Bypassed
+        return await getDetails(wid, true);
     }
 
     async function getDetails(id, isDirect = false) {
@@ -184,13 +212,11 @@
             const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
             const j = await r.json();
             const d = j?.response?.publishedfiledetails?.[0];
-            
             if (!d || d.result !== 1) return null;
 
             const description = d.description || "";
             const title = d.title || "";
             const junkWords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy', 'version'];
-            
             const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
             let validIDs = [];
             let junkFound = [];
@@ -204,7 +230,6 @@
                 }
             });
 
-            // BLOCK LOGIC
             if (!isDirect && validIDs.length === 0 && (junkFound.length > 0 || title.toLowerCase().includes('policy'))) {
                 status.innerHTML = `<div style="background:#600; color:white; padding:8px; border:1px solid red; border-radius:4px;">⚠️ BLOCKED: Search result is a Policy. Use URL to force add.</div>`;
                 return null; 
@@ -219,42 +244,26 @@
         } catch (e) { return null; }
     }
 
-function showResults(data) {
-    const container = document.getElementById('input-container');
-    const old = document.querySelector('.search-results-list');
-    if (old) old.remove();
-    
-    const list = document.createElement('div');
-    list.className = 'search-results-list';
-    list.innerHTML = `
-        <div style="padding:10px; background:#111; border-bottom:1px solid #444; display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span>
-            <button type="button" onclick="this.closest('.search-results-list').remove()" style="background:none; border:none; color:#f44; cursor:pointer; font-weight:bold; font-size:16px;">✕</button>
-        </div>`;
-    
-    data.forEach(item => {
-        const b = document.createElement('button');
-        b.className = 'search-item-btn';
-        b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
-        b.onclick = async (e) => {
-            e.stopPropagation(); 
-            
-            // 1. Remove the list immediately so the user can see the status bar
-            list.remove(); 
-            
-            // 2. Clear the input so the user knows the action was received
-            document.getElementById('mainInput').value = ''; 
-
-            // 3. Process the mod (this will show the Red Alert or Green Success)
-            const details = await getDetails(item.wid, false);
-            if (details) {
-                addModToList(details); 
-            }
-        };
-        list.appendChild(b);
-    });
-    container.appendChild(list);
-}
+    function showResults(data) {
+        const container = document.getElementById('input-container');
+        const old = document.querySelector('.search-results-list');
+        if (old) old.remove();
+        const list = document.createElement('div');
+        list.className = 'search-results-list';
+        list.innerHTML = `<div style="padding:10px; background:#111; border-bottom:1px solid #444; display:flex; justify-content:space-between; align-items:center;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span><button type="button" onclick="this.closest('.search-results-list').remove()" style="background:none; border:none; color:#f44; cursor:pointer; font-weight:bold; font-size:16px;">✕</button></div>`;
+        data.forEach(item => {
+            const b = document.createElement('button');
+            b.className = 'search-item-btn';
+            b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
+            b.onclick = async (e) => {
+                e.stopPropagation(); list.remove(); document.getElementById('mainInput').value = ''; 
+                const details = await getDetails(item.wid, false);
+                if (details) addModToList(details); 
+            };
+            list.appendChild(b);
+        });
+        container.appendChild(list);
+    }
 
     function addModToList(obj) {
         if (!mods.some(m => String(m.wid) === String(obj.wid))) {
@@ -266,12 +275,17 @@ function showResults(data) {
 
     function render() {
         const list = document.getElementById('modlist');
+        const filter = document.getElementById('localFilter');
         list.innerHTML = '';
+        
         if (mods.length === 0) {
             list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px;">No mods added yet.</div>`;
+            filter.style.display = 'none';
             updateOut();
             return;
         }
+
+        filter.style.display = mods.length > 5 ? 'block' : 'none';
 
         const header = document.createElement('div');
         header.className = 'list-header';
@@ -284,15 +298,7 @@ function showResults(data) {
             d.className = 'mod-item';
             d.draggable = true;
             d.dataset.wid = m.wid;
-            d.innerHTML = `
-                <span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <label style="font-size:10px; color:#888;">Map?</label>
-                    <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
-                    <button type="button" class="edit-btn" style="background:#444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✎</button>
-                    <button type="button" class="rmv-btn" style="background:#900; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">X</button>
-                </div>
-            `;
+            d.innerHTML = `<span>☰ <b class="mod-id-label">${m.name}</b> <small style="color:#888;">(${m.wid})</small></span><div style="display:flex; gap:8px; align-items:center;"><label style="font-size:10px; color:#888;">Map?</label><input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}><button type="button" class="edit-btn" style="background:#444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✎</button><button type="button" class="rmv-btn" style="background:#900; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">X</button></div>`;
             d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
             d.querySelector('.edit-btn').onclick = (e) => {
                 e.stopPropagation();
@@ -306,7 +312,6 @@ function showResults(data) {
                 input.focus();
             };
             d.querySelector('.rmv-btn').onclick = (e) => { e.stopPropagation(); mods.splice(i, 1); saveToDisk(); render(); };
-            
             d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; updateOut(); };
             d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
             list.appendChild(d);
@@ -319,10 +324,11 @@ function showResults(data) {
         const outM = document.getElementById('outM');
         const outMap = document.getElementById('outMap');
         if (!mods.length) { 
-            outW.innerHTML = ''; outM.innerHTML = ''; outMap.innerHTML = 'Map=Muldraugh, KY'; 
+            outW.innerHTML = ''; outM.innerHTML = ''; outMap.innerHTML = 'Muldraugh, KY'; 
             return; 
         }
 
+        // Removed the Labels from the innerHTML output
         const wStr = mods.map(m => (String(m.wid) === String(draggingWID)) ? `<span class="highlight-text">${m.wid}</span>` : m.wid).join(';');
         const mStr = mods.map(m => {
             const names = m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
@@ -332,9 +338,9 @@ function showResults(data) {
         const mapMods = mods.filter(m => m.isMap).map(m => m.name.split(';')[0].trim());
         mapMods.push("Muldraugh, KY");
         
-        outW.innerHTML = `WorkshopItems=${wStr}`;
-        outM.innerHTML = `Mods=${mStr}`;
-        outMap.innerHTML = `Map=${mapMods.join(';')}`;
+        outW.innerHTML = wStr;
+        outM.innerHTML = mStr;
+        outMap.innerHTML = mapMods.join(';');
     }
 
     function copyText(id) {
@@ -371,7 +377,3 @@ function showResults(data) {
 </script>
 </body>
 </html>
-
-
-
-
