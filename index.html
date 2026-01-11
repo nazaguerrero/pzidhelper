@@ -128,21 +128,23 @@
     <input type="text" id="localFilter" placeholder="🔍 Find & Highlight a mod in your list..." />
     <div id="modlist"></div>
 
-    <div style="margin-top: 30px;">
-        <strong>WorkshopItems=</strong>
-        <pre id="outW"></pre>
-        <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems</button>
-        
+<div style="margin-top: 30px;">
         <div style="margin-top: 20px;">
-            <strong>Mods=</strong>
+            <strong style="color: var(--accent);">Mods=</strong>
             <pre id="outM"></pre>
-            <button id="copyM" style="background:var(--success)">📋 Copy Mods</button>
+            <button id="copyM" style="background:var(--success)">📋 Copy Mods Line</button>
         </div>
 
         <div style="margin-top: 20px;">
-            <strong>Map=</strong>
+            <strong style="color: var(--accent);">Map=</strong>
             <pre id="outMap"></pre>
             <button id="copyMap" style="background:var(--success)">📋 Copy Map Line</button>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <strong style="color: var(--accent);">WorkshopItems=</strong>
+            <pre id="outW"></pre>
+            <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems Line</button>
         </div>
     </div>
 </div>
@@ -451,5 +453,6 @@ document.getElementById('jumpBottom').onclick = () => list.scrollTo({ top: list.
 </script>
 </body>
 </html>
+
 
 
