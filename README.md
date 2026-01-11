@@ -1,4 +1,4 @@
-## 🚀 Recently Added (Alpha 1.1 - Testing Branch)
+## 🚀 Recently Added (Alpha 0.2 - Testing Branch)
 We've optimized the tool for large mod lists (30+ items).
 
 - [x] **Sticky Control Bar**: Keep mod count and "Clear All" visible while scrolling.
