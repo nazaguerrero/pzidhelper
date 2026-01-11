@@ -19,7 +19,7 @@ A specialized tool for Project Zomboid server admins to generate clean `serverte
 > ### 🚀 [Click here to open the Live Demo Page](https://nazaguerrero.github.io/pzidhelper//)
 
 ## 📸 Preview
-![Tool Screenshot](https://github.com/nazaguerrero/pzidhelper/blob/main/IdToolb42.png)
+![Tool Screenshot](https://github.com/nazaguerrero/pzidhelper/blob/main/IdToolb42B.png)
 
 ---
 
