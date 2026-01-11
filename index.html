@@ -31,20 +31,35 @@
         #status { margin-bottom: 15px; min-height: 40px; font-size: 0.9rem; text-align: center; display: flex; align-items: center; justify-content: center; }
         
         /* SCROLLABLE LIST STYLES */
-        #modlist { 
-            max-height: 500px; 
-            overflow-y: auto; 
-            border: 1px solid #333; 
-            padding: 5px; 
-            background: rgba(0,0,0,0.2); 
-            border-radius: 4px;
-        }
+        /* Ensure the scrollbox has a clean start */
+#modlist { 
+    max-height: 500px; 
+    overflow-y: auto; 
+    border: 1px solid #333; 
+    background: rgba(0,0,0,0.2); 
+    border-radius: 4px;
+    position: relative; /* Context for sticky header */
+}
         #modlist::-webkit-scrollbar { width: 8px; }
         #modlist::-webkit-scrollbar-track { background: #111; }
         #modlist::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
         #modlist::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-        .list-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #444; margin-bottom: 10px; }
+        /* Update the header to stay at the top */
+.list-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 10px; 
+    border-bottom: 1px solid #444; 
+    margin-bottom: 0; /* Remove margin so it sits flush */
+    
+    /* THE TRICK: Sticky positioning */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #1a1a1a; /* Solid color matches your card/bg */
+}
         .count-badge { background: var(--accent); color: #000; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.85rem; margin-left: 8px; }
 
         .mod-item {
@@ -377,3 +392,4 @@
 </script>
 </body>
 </html>
+
