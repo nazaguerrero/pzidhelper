@@ -97,6 +97,17 @@
             width: 100%; padding: 10px; background: #111; border: 1px solid #444; 
             color: #fff; border-radius: 4px; margin-bottom: 10px; display: none;
         }
+
+        .warn-box { 
+    background: #600; 
+    color: #fff; 
+    padding: 10px; 
+    border: 1px solid #f00; 
+    border-radius: 4px; 
+    font-size: 0.9rem;
+    margin-top: 10px;
+    line-height: 1.4;
+}
     </style>
 </head>
 <body>
@@ -232,35 +243,51 @@
         return await getDetails(wid, true);
     }
 
-    async function getDetails(id, isDirect = false) {
-        try {
-            const status = document.getElementById('status');
-            const fd = new FormData();
-            fd.append('itemcount', '1');
-            fd.append('publishedfileids[0]', id);
-            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-            const j = await r.json();
-            const d = j?.response?.publishedfiledetails?.[0];
-            if (!d || d.result !== 1) return null;
+async function getDetails(id, isDirect = false) {
+    try {
+        const status = document.getElementById('status');
+        const fd = new FormData();
+        fd.append('itemcount', '1');
+        fd.append('publishedfileids[0]', id);
+        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+        const j = await r.json();
+        const d = j?.response?.publishedfiledetails?.[0];
+        
+        if (!d || d.result !== 1) return null;
 
-            const description = d.description || "";
-            const title = d.title || "";
-            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-            let validIDs = [];
+        const description = d.description || "";
+        const title = d.title || "";
+        
+        // Keywords that identify a non-mod policy file
+        const policyKeywords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
+        const isPolicy = policyKeywords.some(word => title.toLowerCase().includes(word));
 
-            matches.forEach(m => {
-                const idText = m[1].split('\n')[0].trim();
-                if (idText.length > 0) validIDs.push(idText);
-            });
+        // If it's a policy and we found it via SEARCH (not direct ID/URL)
+        if (!isDirect && isPolicy) {
+            status.innerHTML = `
+                <div class="warn-box">
+                    <strong>⚠️ Disclaimer: Non-Mod Item Detected</strong><br>
+                    "${title}" appears to be a Modding Policy or Permission file, not a mod.<br>
+                    <small>Please find the actual mod page and paste its URL or ID directly instead.</small>
+                </div>`;
+            return null; 
+        }
 
-            let uniqueIDs = [...new Set(validIDs)];
-            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
+        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+        let validIDs = [];
+        matches.forEach(m => {
+            const idText = m[1].split('\n')[0].trim();
+            if (idText.length > 0) validIDs.push(idText);
+        });
 
-            status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || "Mod"}</span>`;
-            return { wid: id, name: finalID, isMap: isMapKeywords };
-        } catch (e) { return null; }
-    }
+        let uniqueIDs = [...new Set(validIDs)];
+        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
+
+        status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
+        return { wid: id, name: finalID, isMap: isMapKeywords };
+    } catch (e) { return null; }
+}
 
     function showResults(data) {
         const container = document.getElementById('input-container');
@@ -424,4 +451,5 @@ document.getElementById('jumpBottom').onclick = () => list.scrollTo({ top: list.
 </script>
 </body>
 </html>
+
 
