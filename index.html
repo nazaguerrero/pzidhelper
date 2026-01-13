@@ -255,82 +255,98 @@
     }
 
     async function getDetails(id, isDirect = false) {
-        try {
-            const status = document.getElementById('status');
-            const params = new URLSearchParams();
-            params.append('itemcount', '1');
-            params.append('publishedfileids[0]', id);
-            params.append('includerelations', '1'); 
+    try {
+        const status = document.getElementById('status');
+        const params = new URLSearchParams();
+        params.append('itemcount', '1');
+        params.append('publishedfileids[0]', id);
+        params.append('includerelations', '1'); 
 
-            const r = await fetch(`${PROXY}/steam-details`, { 
-                method: 'POST', 
-                body: params,
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            });
+        const r = await fetch(`${PROXY}/steam-details`, { 
+            method: 'POST', 
+            body: params,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
 
-            // CHECK IF RESPONSE IS VALID
-            if (!r.ok) {
-                const errorText = await r.text();
-                console.error("Proxy Error:", errorText);
-                status.textContent = "Proxy Error: " + r.status;
-                return null;
-            }
+        if (!r.ok) {
+            const errorText = await r.text();
+            console.error("Proxy Error:", errorText);
+            status.textContent = "Proxy Error: " + r.status;
+            return null;
+        }
 
-            const j = await r.json();
-            const d = j?.response?.publishedfiledetails?.[0];
-            
-            if (!d || d.result !== 1) {
-                status.textContent = "Mod not found or Steam error.";
-                return null;
-            }
+        const j = await r.json();
+        const d = j?.response?.publishedfiledetails?.[0];
+        
+        if (!d || d.result !== 1) {
+            status.textContent = "Mod not found or Steam error.";
+            return null;
+        }
 
-            const description = d.description || "";
-            const title = d.title || "";
-            
-            // Policy Check
-            const isPolicy = ['policy', 'permission', 'license'].some(word => title.toLowerCase().includes(word));
-            if (!isDirect && isPolicy) {
-                status.innerHTML = `<div class="warn-box"><strong>⚠️ Non-Mod Item</strong><br>"${title}" is a Policy file.</div>`;
-                return null; 
-            }
-
-            // ID Extraction
-            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-            let validIDs = [];
-            matches.forEach(m => {
-                const idText = m[1].split('\n')[0].trim();
-                if (idText.length > 0) validIDs.push(idText);
-            });
-
-            const uniqueIDs = [...new Set(validIDs)];
-            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            const isMapKeywords = /map|muldraugh|location|cell/i.test(description + title);
-
-            // Capture dependencies
-            let deps = d.children ? d.children.map(c => String(c.publishedfileid)) : [];
-            
-            // Plan B: Text Scanner
-            const workshopMatches = [...description.matchAll(/workshop\s*id\s*:\s*(\d+)/gi)];
-            workshopMatches.forEach(m => {
-                const foundId = m[1].trim();
-                if (foundId !== id) deps.push(foundId);
-            });
-
-            status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
-            
-            return { 
-                wid: id, 
-                name: finalID, 
-                isMap: isMapKeywords, 
-                title: title, 
-                needs: [...new Set(deps)]
-            };
-        } catch (e) { 
-            console.error("Fetch error:", e);
-            document.getElementById('status').textContent = "Connection error. Check Console.";
+        const description = d.description || "";
+        const title = d.title || "";
+        
+        // Policy Check
+        const isPolicy = ['policy', 'permission', 'license'].some(word => title.toLowerCase().includes(word));
+        if (!isDirect && isPolicy) {
+            status.innerHTML = `<div class="warn-box"><strong>⚠️ Non-Mod Item</strong><br>"${title}" is a Policy file.</div>`;
             return null; 
         }
+
+        // ID Extraction (Mod ID: ...)
+        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+        let validIDs = [];
+        matches.forEach(m => {
+            const idText = m[1].split('\n')[0].trim();
+            if (idText.length > 0) validIDs.push(idText);
+        });
+
+        const uniqueIDs = [...new Set(validIDs)];
+        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+        const isMapKeywords = /map|muldraugh|location|cell/i.test(description + title);
+
+        // --- NEW IMPROVED DEPENDENCY SCANNER START ---
+        
+        // 1. Official Steam Links (The "proper" way)
+        let deps = d.children ? d.children.map(c => String(c.publishedfileid)) : [];
+        
+        // 2. Plan B: Aggressive Text Scanner 
+        // Handles "Workshop ID: 123", "Workshop ID : 123", "Workshop ID-123", etc.
+        const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
+        workshopMatches.forEach(m => {
+            const foundId = m[1].trim();
+            if (foundId !== id) deps.push(foundId);
+        });
+
+        // 3. Plan C: URL Scanner
+        // Catches IDs found in steamcommunity.com links within the description
+        const urlMatches = [...description.matchAll(/filedetails\/\?id=(\d+)/gi)];
+        urlMatches.forEach(m => {
+            const foundId = m[1].trim();
+            if (foundId !== id) deps.push(foundId);
+        });
+
+        // Clean up: Remove duplicates and self-references
+        const finalDeps = [...new Set(deps)];
+        console.log(`Dependencies found for ${title}:`, finalDeps);
+
+        // --- NEW IMPROVED DEPENDENCY SCANNER END ---
+
+        status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
+        
+        return { 
+            wid: id, 
+            name: finalID, 
+            isMap: isMapKeywords, 
+            title: title, 
+            needs: finalDeps 
+        };
+    } catch (e) { 
+        console.error("Fetch error:", e);
+        document.getElementById('status').textContent = "Connection error. Check Console.";
+        return null; 
     }
+}
 
     function showResults(data) {
         const container = document.getElementById('input-container');
@@ -519,6 +535,7 @@
 </script>
 </body>
 </html>
+
 
 
 
