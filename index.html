@@ -258,29 +258,65 @@ async function getDetails(id, isDirect = false) {
         const fd = new FormData();
         fd.append('itemcount', '1');
         fd.append('publishedfileids[0]', id);
-        // This is key: it asks Steam for the "Required Items" list
+        // This tells Steam to include "Required Items" in the response
         fd.append('includerelations', '1'); 
 
         const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
         const j = await r.json();
         const d = j?.response?.publishedfiledetails?.[0];
         
-        if (!d || d.result !== 1) return null;
+        if (!d || d.result !== 1) {
+            status.textContent = "Mod not found or Steam error.";
+            return null;
+        }
 
-        // ... [keep your existing policy check and description matching logic here] ...
+        const description = d.description || "";
+        const title = d.title || "";
+        
+        // 1. Policy/Disclaimer Check
+        const policyKeywords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
+        const isPolicy = policyKeywords.some(word => title.toLowerCase().includes(word));
 
-        // NEW: Capture dependencies
-        const deps = d.children ? d.children.map(c => c.publishedfileid) : [];
+        if (!isDirect && isPolicy) {
+            status.innerHTML = `
+                <div class="warn-box">
+                    <strong>⚠️ Disclaimer: Non-Mod Item Detected</strong><br>
+                    "${title}" appears to be a Policy or Permission file.<br>
+                    <small>Please paste the actual mod URL directly instead.</small>
+                </div>`;
+            return null; 
+        }
 
-        status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || d.title}</span>`;
+        // 2. Extract Mod IDs from the description
+        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+        let validIDs = [];
+        matches.forEach(m => {
+            const idText = m[1].split('\n')[0].trim();
+            if (idText.length > 0) validIDs.push(idText);
+        });
+
+        let uniqueIDs = [...new Set(validIDs)];
+        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
+
+        // 3. NEW: Safely capture dependencies
+        // We use String() because IDs are sometimes returned as numbers from the API
+        const deps = d.children ? d.children.map(c => String(c.publishedfileid)) : [];
+
+        status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
+        
         return { 
             wid: id, 
             name: finalID, 
             isMap: isMapKeywords, 
-            title: d.title, // Store the title for the warning message
-            needs: deps    // Store the list of required IDs
+            title: title, 
+            needs: deps 
         };
-    } catch (e) { return null; }
+    } catch (e) { 
+        console.error("Fetch error:", e);
+        document.getElementById('status').textContent = "Connection error.";
+        return null; 
+    }
 }
 
     function showResults(data) {
@@ -472,4 +508,5 @@ async function getDetails(id, isDirect = false) {
 </script>
 </body>
 </html>
+
 
