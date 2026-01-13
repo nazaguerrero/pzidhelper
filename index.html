@@ -108,15 +108,13 @@
             background: #400 !important;
         }
 .dep-warning {
-    background: #443300;
-    border-left: 4px solid #ffaa00;
-    padding: 8px;
-    margin-top: 10px;
-    font-size: 0.85rem;
-    color: #fff;
-    border-radius: 4px;
-    width: 100%;
-    box-sizing: border-box; /* Prevents the box from being too wide */
+    display: block !important;
+    visibility: visible !important;
+    background: #554400 !important;
+    color: white !important;
+    border: 1px solid orange !important;
+    padding: 10px !important;
+    z-index: 100;
 }
 
 .dep-id {
@@ -265,7 +263,10 @@ async function getDetails(id, isDirect = false) {
         // This tells Steam to include "Required Items" in the response
         fd.append('includerelations', '1'); 
 
-        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+        const r = await fetch(`${PROXY}/steam-details`, { 
+    method: 'POST', 
+    body: fd // Ensure you aren't turning this into a string or JSON
+});
         const j = await r.json();
         const d = j?.response?.publishedfiledetails?.[0];
         
@@ -512,6 +513,7 @@ async function getDetails(id, isDirect = false) {
 </script>
 </body>
 </html>
+
 
 
 
