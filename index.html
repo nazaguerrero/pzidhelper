@@ -108,6 +108,17 @@
     margin-top: 10px;
     line-height: 1.4;
 }
+        /* Animation for Duplicate Warning */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+.duplicate-error {
+    border: 2px solid #ff0000 !important;
+    animation: shake 0.4s ease-in-out;
+    background: #400 !important;
+}
     </style>
 </head>
 <body>
@@ -313,16 +324,42 @@ async function getDetails(id, isDirect = false) {
     }
 
     function addModToList(obj) {
-        if (!mods.some(m => String(m.wid) === String(obj.wid))) {
-            mods.push(obj);
-            render();
-            saveToDisk();
-            // Scroll to the new item at the bottom
+    const status = document.getElementById('status');
+    
+    // Check if the Workshop ID already exists in our list
+    const existingIndex = mods.findIndex(m => String(m.wid) === String(obj.wid));
+
+    if (existingIndex !== -1) {
+        // 1. Alert the user in the status bar
+        status.innerHTML = `<div style="background:#600; color:white; padding:8px; border:1px solid red; border-radius:4px;">⚠️ DUPLICATE: This mod is already at position #${existingIndex + 1}</div>`;
+        
+        // 2. Find the existing element and highlight it
+        const items = document.querySelectorAll('.mod-item');
+        const duplicateItem = items[existingIndex];
+        
+        if (duplicateItem) {
+            duplicateItem.classList.add('duplicate-error');
+            duplicateItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Remove the error styling after 2 seconds
             setTimeout(() => {
-                const list = document.getElementById('modlist');
-                list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-            }, 100);
+                duplicateItem.classList.remove('duplicate-error');
+            }, 2000);
         }
+        return; // Stop here, don't add the mod
+    }
+
+    // If it's not a duplicate, add it normally
+    mods.push(obj);
+    render();
+    saveToDisk();
+    
+    // Scroll to the new item at the bottom
+    setTimeout(() => {
+        const list = document.getElementById('modlist');
+        list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    }, 100);
+}
     }
 
     function render() {
