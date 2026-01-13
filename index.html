@@ -107,6 +107,22 @@
             animation: shake 0.4s ease-in-out;
             background: #400 !important;
         }
+        .dep-warning {
+    background: #443300;
+    border-left: 4px solid var(--warning);
+    padding: 8px;
+    margin-top: 5px;
+    font-size: 0.8rem;
+    color: #fff;
+    border-radius: 4px;
+}
+.dep-id {
+    font-family: monospace;
+    background: #000;
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--accent);
+}
     </style>
 </head>
 <body>
@@ -236,43 +252,36 @@
         return await getDetails(wid, true);
     }
 
-    async function getDetails(id, isDirect = false) {
-        try {
-            const status = document.getElementById('status');
-            const fd = new FormData();
-            fd.append('itemcount', '1');
-            fd.append('publishedfileids[0]', id);
-            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-            const j = await r.json();
-            const d = j?.response?.publishedfiledetails?.[0];
-            
-            if (!d || d.result !== 1) return null;
+async function getDetails(id, isDirect = false) {
+    try {
+        const status = document.getElementById('status');
+        const fd = new FormData();
+        fd.append('itemcount', '1');
+        fd.append('publishedfileids[0]', id);
+        // This is key: it asks Steam for the "Required Items" list
+        fd.append('includerelations', '1'); 
 
-            const description = d.description || "";
-            const title = d.title || "";
-            const policyKeywords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
-            const isPolicy = policyKeywords.some(word => title.toLowerCase().includes(word));
+        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+        const j = await r.json();
+        const d = j?.response?.publishedfiledetails?.[0];
+        
+        if (!d || d.result !== 1) return null;
 
-            if (!isDirect && isPolicy) {
-                status.innerHTML = `<div class="warn-box"><strong>⚠️ Disclaimer: Non-Mod Item Detected</strong><br>"${title}" is a Policy file.<br><small>Please paste the actual mod URL instead.</small></div>`;
-                return null; 
-            }
+        // ... [keep your existing policy check and description matching logic here] ...
 
-            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-            let validIDs = [];
-            matches.forEach(m => {
-                const idText = m[1].split('\n')[0].trim();
-                if (idText.length > 0) validIDs.push(idText);
-            });
+        // NEW: Capture dependencies
+        const deps = d.children ? d.children.map(c => c.publishedfileid) : [];
 
-            let uniqueIDs = [...new Set(validIDs)];
-            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
-
-            status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
-            return { wid: id, name: finalID, isMap: isMapKeywords };
-        } catch (e) { return null; }
-    }
+        status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || d.title}</span>`;
+        return { 
+            wid: id, 
+            name: finalID, 
+            isMap: isMapKeywords, 
+            title: d.title, // Store the title for the warning message
+            needs: deps    // Store the list of required IDs
+        };
+    } catch (e) { return null; }
+}
 
     function showResults(data) {
         const container = document.getElementById('input-container');
@@ -382,6 +391,24 @@
             d.querySelector('.rmv-btn').onclick = (e) => { e.stopPropagation(); mods.splice(i, 1); saveToDisk(); render(); };
             d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; updateOut(); };
             d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
+            if (m.needs && m.needs.length > 0) {
+                const missing = m.needs.filter(needId => !mods.some(existing => String(existing.wid) === String(needId)));
+                
+                if (missing.length > 0) {
+                    const warnDiv = document.createElement('div');
+                    warnDiv.className = 'dep-warning';
+                    // Optional: added a style to ensure it wraps to a new line
+                    warnDiv.style.width = "100%"; 
+                    warnDiv.style.marginTop = "10px";
+                    
+                    warnDiv.innerHTML = `⚠️ Dependency missing! This mod requires Workshop IDs: ` + 
+                        missing.map(id => `<span class="dep-id">${id}</span>`).join(', ');
+                    
+                    // We change the mod item to flex-wrap so the warning stays below the title/buttons
+                    d.style.flexWrap = "wrap"; 
+                    d.appendChild(warnDiv);
+                }
+            }
             list.appendChild(d);
         });
         updateOut();
@@ -445,3 +472,4 @@
 </script>
 </body>
 </html>
+
