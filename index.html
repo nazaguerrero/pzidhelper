@@ -107,21 +107,25 @@
             animation: shake 0.4s ease-in-out;
             background: #400 !important;
         }
-        .dep-warning {
+.dep-warning {
     background: #443300;
-    border-left: 4px solid var(--warning);
+    border-left: 4px solid #ffaa00;
     padding: 8px;
-    margin-top: 5px;
-    font-size: 0.8rem;
+    margin-top: 10px;
+    font-size: 0.85rem;
     color: #fff;
     border-radius: 4px;
+    width: 100%;
+    box-sizing: border-box; /* Prevents the box from being too wide */
 }
+
 .dep-id {
     font-family: monospace;
     background: #000;
-    padding: 1px 4px;
+    padding: 2px 5px;
     border-radius: 3px;
-    color: var(--accent);
+    color: #00d4ff;
+    font-weight: bold;
 }
     </style>
 </head>
@@ -508,5 +512,6 @@ async function getDetails(id, isDirect = false) {
 </script>
 </body>
 </html>
+
 
 
