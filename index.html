@@ -305,8 +305,8 @@ async function getDetails(id, isDirect = false) {
 
         // 3. NEW: Safely capture dependencies
         // We use String() because IDs are sometimes returned as numbers from the API
-        const deps = d.children ? d.children.map(c => String(c.publishedfileid)) : [];
-
+        const deps = (d.children || []).map(c => String(c.publishedfileid));
+        console.log("Steam returned deps:", deps);
         status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
         
         return { 
@@ -512,6 +512,7 @@ async function getDetails(id, isDirect = false) {
 </script>
 </body>
 </html>
+
 
 
 
