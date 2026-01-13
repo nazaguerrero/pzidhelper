@@ -30,7 +30,6 @@
         
         #status { margin-bottom: 15px; min-height: 40px; font-size: 0.9rem; text-align: center; display: flex; align-items: center; justify-content: center; }
         
-        /* SCROLLABLE LIST STYLES */
         #modlist { 
             max-height: 500px; 
             overflow-y: auto; 
@@ -52,7 +51,6 @@
         }
         .count-badge { background: var(--accent); color: #000; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.85rem; margin-left: 8px; }
 
-        /* MOD ITEM & HIGHLIGHT */
         .mod-item {
             background: var(--card); padding: 12px; margin: 8px; border-radius: 6px;
             display: flex; justify-content: space-between; align-items: center;
@@ -60,7 +58,6 @@
         }
         .mod-item.dragging { opacity: 0.5; border: 2px solid var(--accent) !important; background: #333; }
         
-        /* THE SEARCH HIGHLIGHT EFFECT */
         .search-highlight {
             border: 2px solid var(--accent) !important;
             box-shadow: 0 0 15px rgba(255, 102, 0, 0.4);
@@ -98,27 +95,18 @@
             color: #fff; border-radius: 4px; margin-bottom: 10px; display: none;
         }
 
-        .warn-box { 
-    background: #600; 
-    color: #fff; 
-    padding: 10px; 
-    border: 1px solid #f00; 
-    border-radius: 4px; 
-    font-size: 0.9rem;
-    margin-top: 10px;
-    line-height: 1.4;
-}
-        /* Animation for Duplicate Warning */
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    75% { transform: translateX(5px); }
-}
-.duplicate-error {
-    border: 2px solid #ff0000 !important;
-    animation: shake 0.4s ease-in-out;
-    background: #400 !important;
-}
+        .warn-box { background: #600; color: #fff; padding: 10px; border: 1px solid #f00; border-radius: 4px; font-size: 0.9rem; margin-top: 10px; line-height: 1.4; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .duplicate-error {
+            border: 2px solid #ff0000 !important;
+            animation: shake 0.4s ease-in-out;
+            background: #400 !important;
+        }
     </style>
 </head>
 <body>
@@ -139,7 +127,7 @@
     <input type="text" id="localFilter" placeholder="🔍 Find & Highlight a mod in your list..." />
     <div id="modlist"></div>
 
-<div style="margin-top: 30px;">
+    <div style="margin-top: 30px;">
         <div style="margin-top: 20px;">
             <strong style="color: var(--accent);">Mods=</strong>
             <pre id="outM"></pre>
@@ -178,22 +166,16 @@
         document.getElementById('copyM').onclick = () => copyText('outM');
         document.getElementById('copyMap').onclick = () => copyText('outMap');
 
-        // NEW FILTER LOGIC: Highlight & Scroll
         document.getElementById('localFilter').oninput = (e) => {
             const term = e.target.value.toLowerCase();
             const items = document.querySelectorAll('.mod-item');
-            
-            // Remove previous highlights
             items.forEach(item => item.classList.remove('search-highlight'));
-            
             if (term.length < 2) return;
-
             for (const item of items) {
                 if (item.innerText.toLowerCase().includes(term)) {
                     item.classList.add('search-highlight');
-                    // Scroll it into the middle of the scrollbox
                     item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    break; // Just highlight the first match
+                    break;
                 }
             }
         };
@@ -201,9 +183,7 @@
         document.addEventListener('click', (e) => {
             const list = document.querySelector('.search-results-list');
             const inputCont = document.getElementById('input-container');
-            if (list && !inputCont.contains(e.target)) {
-                list.remove();
-            }
+            if (list && !inputCont.contains(e.target)) list.remove();
         });
 
         render();
@@ -256,51 +236,43 @@
         return await getDetails(wid, true);
     }
 
-async function getDetails(id, isDirect = false) {
-    try {
-        const status = document.getElementById('status');
-        const fd = new FormData();
-        fd.append('itemcount', '1');
-        fd.append('publishedfileids[0]', id);
-        const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
-        const j = await r.json();
-        const d = j?.response?.publishedfiledetails?.[0];
-        
-        if (!d || d.result !== 1) return null;
+    async function getDetails(id, isDirect = false) {
+        try {
+            const status = document.getElementById('status');
+            const fd = new FormData();
+            fd.append('itemcount', '1');
+            fd.append('publishedfileids[0]', id);
+            const r = await fetch(`${PROXY}/steam-details`, { method: 'POST', body: fd });
+            const j = await r.json();
+            const d = j?.response?.publishedfiledetails?.[0];
+            
+            if (!d || d.result !== 1) return null;
 
-        const description = d.description || "";
-        const title = d.title || "";
-        
-        // Keywords that identify a non-mod policy file
-        const policyKeywords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
-        const isPolicy = policyKeywords.some(word => title.toLowerCase().includes(word));
+            const description = d.description || "";
+            const title = d.title || "";
+            const policyKeywords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
+            const isPolicy = policyKeywords.some(word => title.toLowerCase().includes(word));
 
-        // If it's a policy and we found it via SEARCH (not direct ID/URL)
-        if (!isDirect && isPolicy) {
-            status.innerHTML = `
-                <div class="warn-box">
-                    <strong>⚠️ Disclaimer: Non-Mod Item Detected</strong><br>
-                    "${title}" appears to be a Modding Policy or Permission file, not a mod.<br>
-                    <small>Please find the actual mod page and paste its URL or ID directly instead.</small>
-                </div>`;
-            return null; 
-        }
+            if (!isDirect && isPolicy) {
+                status.innerHTML = `<div class="warn-box"><strong>⚠️ Disclaimer: Non-Mod Item Detected</strong><br>"${title}" is a Policy file.<br><small>Please paste the actual mod URL instead.</small></div>`;
+                return null; 
+            }
 
-        const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-        let validIDs = [];
-        matches.forEach(m => {
-            const idText = m[1].split('\n')[0].trim();
-            if (idText.length > 0) validIDs.push(idText);
-        });
+            const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+            let validIDs = [];
+            matches.forEach(m => {
+                const idText = m[1].split('\n')[0].trim();
+                if (idText.length > 0) validIDs.push(idText);
+            });
 
-        let uniqueIDs = [...new Set(validIDs)];
-        const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-        const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
+            let uniqueIDs = [...new Set(validIDs)];
+            const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+            const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
 
-        status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
-        return { wid: id, name: finalID, isMap: isMapKeywords };
-    } catch (e) { return null; }
-}
+            status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
+            return { wid: id, name: finalID, isMap: isMapKeywords };
+        } catch (e) { return null; }
+    }
 
     function showResults(data) {
         const container = document.getElementById('input-container');
@@ -324,42 +296,28 @@ async function getDetails(id, isDirect = false) {
     }
 
     function addModToList(obj) {
-    const status = document.getElementById('status');
-    
-    // Check if the Workshop ID already exists in our list
-    const existingIndex = mods.findIndex(m => String(m.wid) === String(obj.wid));
+        const status = document.getElementById('status');
+        const existingIndex = mods.findIndex(m => String(m.wid) === String(obj.wid));
 
-    if (existingIndex !== -1) {
-        // 1. Alert the user in the status bar
-        status.innerHTML = `<div style="background:#600; color:white; padding:8px; border:1px solid red; border-radius:4px;">⚠️ DUPLICATE: This mod is already at position #${existingIndex + 1}</div>`;
-        
-        // 2. Find the existing element and highlight it
-        const items = document.querySelectorAll('.mod-item');
-        const duplicateItem = items[existingIndex];
-        
-        if (duplicateItem) {
-            duplicateItem.classList.add('duplicate-error');
-            duplicateItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            // Remove the error styling after 2 seconds
-            setTimeout(() => {
-                duplicateItem.classList.remove('duplicate-error');
-            }, 2000);
+        if (existingIndex !== -1) {
+            status.innerHTML = `<div style="background:#600; color:white; padding:8px; border:1px solid red; border-radius:4px;">⚠️ DUPLICATE: Already at position #${existingIndex + 1}</div>`;
+            const items = document.querySelectorAll('.mod-item');
+            const duplicateItem = items[existingIndex];
+            if (duplicateItem) {
+                duplicateItem.classList.add('duplicate-error');
+                duplicateItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => duplicateItem.classList.remove('duplicate-error'), 2000);
+            }
+            return;
         }
-        return; // Stop here, don't add the mod
-    }
 
-    // If it's not a duplicate, add it normally
-    mods.push(obj);
-    render();
-    saveToDisk();
-    
-    // Scroll to the new item at the bottom
-    setTimeout(() => {
-        const list = document.getElementById('modlist');
-        list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-    }, 100);
-}
+        mods.push(obj);
+        render();
+        saveToDisk();
+        setTimeout(() => {
+            const list = document.getElementById('modlist');
+            list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+        }, 100);
     }
 
     function render() {
@@ -376,22 +334,19 @@ async function getDetails(id, isDirect = false) {
 
         filter.style.display = mods.length > 5 ? 'block' : 'none';
 
-// Locate this section inside your render() function:
-const header = document.createElement('div');
-header.className = 'list-header';
-header.innerHTML = `
-    <div><h3 style="display:inline; margin:0;">Added Mods</h3><span class="count-badge">${mods.length}</span></div>
-    <div style="display:flex; gap:8px;">
-        <button id="jumpTop" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↑ Top</button>
-        <button id="jumpBottom" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↓ End</button>
-        <button id="clrBtn" style="background:#900; padding:5px 10px; font-size:12px; color:white; border:none; border-radius:4px; cursor:pointer;">Clear All</button>
-    </div>`;
-list.appendChild(header);
+        const header = document.createElement('div');
+        header.className = 'list-header';
+        header.innerHTML = `
+            <div><h3 style="display:inline; margin:0;">Added Mods</h3><span class="count-badge">${mods.length}</span></div>
+            <div style="display:flex; gap:8px;">
+                <button id="jumpTop" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↑ Top</button>
+                <button id="jumpBottom" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↓ End</button>
+                <button id="clrBtn" style="background:#900; padding:5px 10px; font-size:12px; color:white; border:none; border-radius:4px; cursor:pointer;">Clear All</button>
+            </div>`;
+        list.appendChild(header);
 
-// Add the Top Scroll logic:
-document.getElementById('jumpTop').onclick = () => list.scrollTo({ top: 0, behavior: 'smooth' });
-// Existing Bottom Scroll logic:
-document.getElementById('jumpBottom').onclick = () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+        document.getElementById('jumpTop').onclick = () => list.scrollTo({ top: 0, behavior: 'smooth' });
+        document.getElementById('jumpBottom').onclick = () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
         document.getElementById('clrBtn').onclick = () => { if(confirm("Clear everything?")) { mods = []; saveToDisk(); render(); } };
 
         mods.forEach((m, i) => {
@@ -490,6 +445,3 @@ document.getElementById('jumpBottom').onclick = () => list.scrollTo({ top: list.
 </script>
 </body>
 </html>
-
-
-
