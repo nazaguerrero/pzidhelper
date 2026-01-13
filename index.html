@@ -265,8 +265,16 @@
             const r = await fetch(`${PROXY}/steam-details`, { 
                 method: 'POST', 
                 body: params,
-                headers: { 'Content-Type': 'application/x-form-urlencoded' }
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
+
+            // CHECK IF RESPONSE IS VALID
+            if (!r.ok) {
+                const errorText = await r.text();
+                console.error("Proxy Error:", errorText);
+                status.textContent = "Proxy Error: " + r.status;
+                return null;
+            }
 
             const j = await r.json();
             const d = j?.response?.publishedfiledetails?.[0];
@@ -279,15 +287,14 @@
             const description = d.description || "";
             const title = d.title || "";
             
-            // Fixed Policy Check
-            const policyKeywords = ['policy', 'permission', 'license', 'legal', 'credit', 'moddingpolicy'];
-            const isPolicy = policyKeywords.some(word => title.toLowerCase().includes(word));
+            // Policy Check
+            const isPolicy = ['policy', 'permission', 'license'].some(word => title.toLowerCase().includes(word));
             if (!isDirect && isPolicy) {
                 status.innerHTML = `<div class="warn-box"><strong>⚠️ Non-Mod Item</strong><br>"${title}" is a Policy file.</div>`;
                 return null; 
             }
 
-            // Fixed ID Extraction
+            // ID Extraction
             const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
             let validIDs = [];
             matches.forEach(m => {
@@ -302,14 +309,12 @@
             // Capture dependencies
             let deps = d.children ? d.children.map(c => String(c.publishedfileid)) : [];
             
-            // Plan B: Text Scanner (In case Proxy strips official deps)
-            if (deps.length === 0) {
-                const workshopMatches = [...description.matchAll(/workshop\s*id\s*:\s*(\d+)/gi)];
-                workshopMatches.forEach(m => {
-                    const foundId = m[1].trim();
-                    if (foundId !== id) deps.push(foundId);
-                });
-            }
+            // Plan B: Text Scanner
+            const workshopMatches = [...description.matchAll(/workshop\s*id\s*:\s*(\d+)/gi)];
+            workshopMatches.forEach(m => {
+                const foundId = m[1].trim();
+                if (foundId !== id) deps.push(foundId);
+            });
 
             status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
             
@@ -318,11 +323,11 @@
                 name: finalID, 
                 isMap: isMapKeywords, 
                 title: title, 
-                needs: [...new Set(deps)] // Ensure unique
+                needs: [...new Set(deps)]
             };
         } catch (e) { 
             console.error("Fetch error:", e);
-            document.getElementById('status').textContent = "Connection error.";
+            document.getElementById('status').textContent = "Connection error. Check Console.";
             return null; 
         }
     }
@@ -514,6 +519,7 @@
 </script>
 </body>
 </html>
+
 
 
 
