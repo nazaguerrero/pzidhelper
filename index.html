@@ -429,17 +429,22 @@
 
             async function getDetails(id) {
                     try {
+                        const status = document.getElementById('status');
+
+                        // Prepare the POST body for your specific worker path
                         const params = new URLSearchParams();
                         params.append('itemcount', '1');
                         params.append('publishedfileids[0]', id);
                         params.append('includerelations', '1');
 
-                        // Note the path /steam-details
+                        // Note: We hit /steam-details as defined in your Cloudflare index.js
                         const r = await fetch(`${BASE_PROXY}/steam-details`, {
                             method: 'POST',
-                            body: params,
+                            body: params.toString(),
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
                         });
+
+                        if (!r.ok) throw new Error(`Worker responded with ${r.status}`);
 
                         const j = await r.json();
                         const d = j?.response?.publishedfiledetails?.[0];
@@ -449,26 +454,38 @@
                         const description = d.description || "";
                         const title = d.title || "";
 
-                        // --- DEPENDENCY LOGIC ---
+                        // --- DEPENDENCY SCANNING ---
                         let deps = [];
-                        // Check official sidebar dependencies
+
+                        // A. Check official Steam "Required Items" (Children)
                         if (d.children) {
                             deps = d.children.map(c => String(c.publishedfileid));
                         }
-                        // Scan text for "Workshop ID" (Finds 'that DAMN Library')
+
+                        // B. Scan description for hidden "Workshop ID" text (Finds 'that DAMN Library')
                         const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
                         workshopMatches.forEach(m => {
-                            if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
+                            const foundId = String(m[1]);
+                            // Avoid adding the mod itself or the Bikini Tools blacklist
+                            if (foundId !== id && foundId !== '2634426926') {
+                                deps.push(foundId);
+                            }
                         });
+
+                        // --- MOD ID EXTRACTION ---
+                        const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+                        let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
 
                         return {
                             wid: id,
-                            name: title.replace(/[^a-zA-Z0-9_\-]/g, ''),
+                            name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
                             title: title,
-                            needs: [...new Set(deps)] // This captures the dependencies!
+                            isMap: /map|muldraugh|location|cell/i.test(description + title),
+                            needs: [...new Set(deps)] // Removes duplicates
                         };
+
                     } catch (e) {
-                        console.error("Worker Error:", e);
+                        console.error("Dependency check failed:", e);
                         return null;
                     }
                 }
