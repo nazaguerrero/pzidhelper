@@ -647,6 +647,7 @@
                     d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; };
                     d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
 
+                    // Improved Dependency UI
                     if (m.needs && m.needs.length > 0) {
                         const missing = m.needs.filter(needId => !mods.some(existing => String(existing.wid) === String(needId)));
                         if (missing.length > 0) {
@@ -654,8 +655,28 @@
                             warnDiv.className = 'dep-warning';
                             warnDiv.style.width = "100%";
                             warnDiv.style.marginTop = "10px";
-                            warnDiv.innerHTML = `⚠️ <b>Missing Requirements:</b> ` +
-                                missing.map(id => `<span class="dep-id" style="cursor:pointer; text-decoration:underline;" onclick="document.getElementById('mainInput').value='${id}'; document.getElementById('addBtn').click();">${id}</span>`).join(', ');
+
+                            // Create the header text
+                            warnDiv.innerHTML = `⚠️ <b>Required Mods:</b> <small>(Click ID to add automatically)</small><br>`;
+
+                            // Create buttons for each missing ID
+                            missing.forEach(id => {
+                                const btn = document.createElement('button');
+                                btn.textContent = id;
+                                btn.className = 'dep-id'; // Uses your existing blue styling
+                                btn.style.margin = "4px 4px 0 0";
+                                btn.style.cursor = "pointer";
+                                btn.style.border = "1px solid #00d4ff";
+
+                                btn.onclick = (e) => {
+                                    e.preventDefault();
+                                    const input = document.getElementById('mainInput');
+                                    input.value = id;
+                                    document.getElementById('addBtn').click();
+                                };
+                                warnDiv.appendChild(btn);
+                            });
+
                             d.style.flexWrap = "wrap";
                             d.appendChild(warnDiv);
                         }
