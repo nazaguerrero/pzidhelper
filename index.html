@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -389,82 +389,131 @@
                 </div>
     </div>
     <script>
+        const PROXY = "https://corsproxy.io/?url=";
+            const STEAM_API = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
+            const SEARCH_API = "https://api.steampowered.com/IPublishedFileService/QueryFiles/v1/";
 
-    const PROXY = "https://corsproxy.io/?url=";
-    const STEAM_API = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
-    const SEARCH_API = "https://api.steampowered.com/IPublishedFileService/QueryFiles/v1/";
-    
-    async function getDetails(id) {
-    try {
-    const status = document.getElementById('status');
-    // Construct the URL for the proxy
-    const targetUrl = `${STEAM_API}?itemcount=1&publishedfileids[0]=${id}&includerelations=1`;
-    
-    const r = await fetch(PROXY + encodeURIComponent(targetUrl));
-    if (!r.ok) throw new Error("Steam API unreachable");
-    
-    const j = await r.json();
-    const d = j?.response?.publishedfiledetails?.[0];
-    
-    if (!d || d.result !== 1) return null;
-    
-    const description = d.description || "";
-    const title = d.title || "";
-    
-    // Dependency Logic (Sidebar + Text)
-    let deps = [];
-    if (d.children) deps = d.children.map(c => String(c.publishedfileid));
-    
-    const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
-    workshopMatches.forEach(m => {
-    const foundId = String(m[1]);
-    if (foundId !== id && foundId !== '2634426926') deps.push(foundId);
-    });
-    
-    const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-    let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(id => id.length > 0);
-    
-    return {
-    wid: id,
-    name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
-    title: title,
-    isMap: /map|muldraugh|location|cell/i.test(description + title),
-    needs: [...new Set(deps)]
-    };
-    } catch (e) {
-    console.error("Detail Fetch Error:", e);
-    return null;
-    }
-    }
-    
-    async function fetchInfo(query) {
-    const status = document.getElementById('status');
-    // If user typed a numbers-only ID, skip search and go straight to details
-    if (/^\d+$/.test(query)) {
-    const d = await getDetails(query);
-    if (d) addModToList(d);
-    return;
-    }
-    
-    try {
-    status.textContent = "Searching...";
-    const targetUrl =
-    `${SEARCH_API}?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
-    
-    const r = await fetch(PROXY + encodeURIComponent(targetUrl));
-    const j = await r.json();
-    const item = j?.response?.publishedfiledetails?.[0];
-    
-    if (!item) throw new Error("No results");
-    
-    const details = await getDetails(item.publishedfileid);
-    if (details) addModToList(details);
-    } catch (e) {
-    status.textContent = "Search failed. Try using the Workshop ID number.";
-    console.error("Search Error:", e);
-    }
-    }
-</script>
+            let modList = [];
+            let isV42 = true;
+
+            // 1. Hook up the buttons
+            document.getElementById('addBtn').onclick = handleAdd;
+            document.getElementById('mainInput').onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
+            document.getElementById('v41').onclick = () => { setVersion(false); };
+            document.getElementById('v42').onclick = () => { setVersion(true); };
+
+            function setVersion(val) {
+                isV42 = val;
+                document.getElementById('v42').classList.toggle('active', val);
+                document.getElementById('v41').classList.toggle('active', !val);
+                updateOutput();
+            }
+
+            async function handleAdd() {
+                const input = document.getElementById('mainInput');
+                const query = input.value.trim();
+                if (!query) return;
+
+                let id = query;
+                if (query.includes('id=')) {
+                    id = query.split('id=')[1].split('&')[0];
+                }
+
+                input.value = '';
+                if (/^\d+$/.test(id)) {
+                    const d = await getDetails(id);
+                    if (d) addModToList(d);
+                } else {
+                    await fetchInfo(query);
+                }
+            }
+
+            async function getDetails(id) {
+                try {
+                    const status = document.getElementById('status');
+                    const targetUrl = `${STEAM_API}?itemcount=1&publishedfileids[0]=${id}&includerelations=1`;
+                    const r = await fetch(PROXY + encodeURIComponent(targetUrl));
+                    const j = await r.json();
+                    const d = j?.response?.publishedfiledetails?.[0];
+
+                    if (!d || d.result !== 1) return null;
+
+                    const desc = d.description || "";
+                    const title = d.title || "";
+
+                    let deps = [];
+                    if (d.children) deps = d.children.map(c => String(c.publishedfileid));
+
+                    const workshopMatches = [...desc.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
+                    workshopMatches.forEach(m => {
+                        if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
+                    });
+
+                    const modIdMatches = [...desc.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+                    let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
+
+                    return {
+                        wid: id,
+                        name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
+                        title: title,
+                        isMap: /map|muldraugh|location|cell/i.test(desc + title),
+                        needs: [...new Set(deps)]
+                    };
+                } catch (e) { return null; }
+            }
+
+            async function fetchInfo(query) {
+                const status = document.getElementById('status');
+                try {
+                    status.textContent = "Searching...";
+                    const targetUrl = `${SEARCH_API}?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
+                    const r = await fetch(PROXY + encodeURIComponent(targetUrl));
+                    const j = await r.json();
+                    const item = j?.response?.publishedfiledetails?.[0];
+                    if (!item) throw new Error();
+                    const d = await getDetails(item.publishedfileid);
+                    if (d) addModToList(d);
+                } catch (e) { status.textContent = "Search failed. Use ID instead."; }
+            }
+
+            function addModToList(mod) {
+                if (modList.some(m => m.wid === mod.wid)) return;
+                modList.push(mod);
+
+                // Auto-fetch dependencies
+                if (mod.needs.length > 0) {
+                    mod.needs.forEach(async (depId) => {
+                        const dep = await getDetails(depId);
+                        if (dep) addModToList(dep);
+                    });
+                }
+                renderList();
+                updateOutput();
+            }
+
+            function renderList() {
+                const list = document.getElementById('modlist');
+                list.innerHTML = modList.map((m, i) => `
+            <div class="mod-item">
+                <span><b>${m.title}</b> <small>(${m.wid})</small></span>
+                <button onclick="removeMod(${i})" style="background:#600; padding:2px 8px;">X</button>
+            </div>
+        `).join('');
+            }
+
+            window.removeMod = (index) => {
+                modList.splice(index, 1);
+                renderList();
+                updateOutput();
+            };
+
+            function updateOutput() {
+                const sep = isV42 ? "\\" : ";";
+                document.getElementById('outM').textContent = modList.map(m => m.name).join(sep);
+                document.getElementById('outMap').textContent = modList.filter(m => m.isMap).map(m => m.name).join(sep);
+                document.getElementById('outW').textContent = modList.map(m => m.wid).join(sep);
+            }
+    </script>
 </body>
 
 </html>
