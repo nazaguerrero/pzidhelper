@@ -389,8 +389,8 @@
                 </div>
     </div>
     <script>
-        // Replace this with your actual Workers URL from the Cloudflare dashboard
-            const BASE_PROXY = "https://pz-mod-proxy.nazaguerrero.workers.dev";    
+        // Point to your private worker
+            const BASE_PROXY = "https://pz-mod-proxy.nazaguerrero.workers.dev";
 
             let modList = [];
             let isV42 = true;
@@ -401,11 +401,23 @@
             document.getElementById('v41').onclick = () => { setVersion(false); };
             document.getElementById('v42').onclick = () => { setVersion(true); };
 
+            // Copy Buttons logic
+            document.getElementById('copyM').onclick = () => copyToClipboard('outM');
+            document.getElementById('copyMap').onclick = () => copyToClipboard('outMap');
+            document.getElementById('copyW').onclick = () => copyToClipboard('outW');
+
             function setVersion(val) {
                 isV42 = val;
                 document.getElementById('v42').classList.toggle('active', val);
                 document.getElementById('v41').classList.toggle('active', !val);
                 updateOutput();
+            }
+
+            function copyToClipboard(id) {
+                const text = document.getElementById(id).textContent;
+                navigator.clipboard.writeText(text);
+                document.getElementById(id).classList.add('copy-flash');
+                setTimeout(() => document.getElementById(id).classList.remove('copy-flash'), 600);
             }
 
             async function handleAdd() {
@@ -427,84 +439,83 @@
                 }
             }
 
-                async function getDetails(id) {
-                        try {
-                            const params = new URLSearchParams();
-                            params.append('itemcount', '1');
-                            params.append('publishedfileids[0]', id);
-                            params.append('includerelations', '1');
+            async function getDetails(id) {
+                try {
+                    const params = new URLSearchParams();
+                    params.append('itemcount', '1');
+                    params.append('publishedfileids[0]', id);
+                    params.append('includerelations', '1');
 
-                            const r = await fetch(`${BASE_PROXY}/steam-details`, {
-                                method: 'POST',
-                                body: params.toString(),
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                            });
+                    const r = await fetch(`${BASE_PROXY}/steam-details`, {
+                        method: 'POST',
+                        body: params.toString(),
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                    });
 
-                            const text = await r.text();
-                            if (text.startsWith('<html>')) throw new Error("Worker returned HTML error");
+                    const text = await r.text();
+                    if (text.startsWith('<html>')) throw new Error("Worker returned HTML error");
 
-                            const j = JSON.parse(text);
-                            const d = j?.response?.publishedfiledetails?.[0];
-                            if (!d || d.result !== 1) return null;
+                    const j = JSON.parse(text);
+                    const d = j?.response?.publishedfiledetails?.[0];
+                    if (!d || d.result !== 1) return null;
 
-                            const description = d.description || "";
-                            const title = d.title || "";
+                    const description = d.description || "";
+                    const title = d.title || "";
 
-                            let deps = [];
-                            if (d.children) deps = d.children.map(c => String(c.publishedfileid));
-                            const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
-                            workshopMatches.forEach(m => {
-                                if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
-                            });
+                    let deps = [];
+                    if (d.children) deps = d.children.map(c => String(c.publishedfileid));
+                    const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
+                    workshopMatches.forEach(m => {
+                        if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
+                    });
 
-                            const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-                            let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
+                    const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+                    let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
 
-                            return {
-                                wid: id,
-                                name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
-                                title: title,
-                                isMap: /map|muldraugh|location|cell/i.test(description + title),
-                                needs: [...new Set(deps)]
-                            };
-                        } catch (e) { return null; }
-                    }
+                    return {
+                        wid: id,
+                        name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
+                        title: title,
+                        isMap: /map|muldraugh|location|cell/i.test(description + title),
+                        needs: [...new Set(deps)]
+                    };
+                } catch (e) { return null; }
+            }
 
             async function fetchInfo(query) {
-                    const status = document.getElementById('status');
-                    try {
-                        status.textContent = "Searching Steam Workshop...";
-                        // We must use the /steam-search path you defined in your worker
-                        const url = `${BASE_PROXY}/steam-search?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
+                const status = document.getElementById('status');
+                try {
+                    status.textContent = "Searching Steam Workshop...";
+                    const url = `${BASE_PROXY}/steam-search?appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
 
-                        const r = await fetch(url);
-                        const text = await r.text(); // Get text first to check for HTML errors
+                    const r = await fetch(url);
+                    const text = await r.text();
 
-                        if (text.startsWith('<html>') || text.startsWith('<!DOCTYPE')) {
-                            throw new Error("Worker returned HTML instead of JSON. Check your worker deployment.");
-                        }
-
-                        const j = JSON.parse(text);
-                        const item = j?.response?.publishedfiledetails?.[0];
-
-                        if (!item || item.result !== 1) {
-                            status.textContent = "No mods found with that name.";
-                            return;
-                        }
-
-                        const details = await getDetails(item.publishedfileid);
-                        if (details) addModToList(details);
-                    } catch (e) {
-                        status.textContent = "Search failed. Use ID instead.";
-                        console.error("Search Error:", e);
+                    if (text.startsWith('<html>') || text.startsWith('<!DOCTYPE')) {
+                        throw new Error("Worker returned HTML. Check deployment.");
                     }
+
+                    const j = JSON.parse(text);
+                    const item = j?.response?.publishedfiledetails?.[0];
+
+                    if (!item || item.result !== 1) {
+                        status.textContent = "No mods found with that name.";
+                        return;
+                    }
+
+                    const details = await getDetails(item.publishedfileid);
+                    if (details) addModToList(details);
+                    status.textContent = "Ready.";
+                } catch (e) {
+                    status.textContent = "Search failed.";
+                    console.error(e);
                 }
+            }
 
             function addModToList(mod) {
                 if (modList.some(m => m.wid === mod.wid)) return;
                 modList.push(mod);
 
-                // Auto-fetch dependencies
                 if (mod.needs.length > 0) {
                     mod.needs.forEach(async (depId) => {
                         const dep = await getDetails(depId);
@@ -515,15 +526,54 @@
                 updateOutput();
             }
 
+            // RESTORED: Full renderList with Drag, Edit, and Map Toggle
             function renderList() {
                 const list = document.getElementById('modlist');
-                list.innerHTML = modList.map((m, i) => `
-            <div class="mod-item">
-                <span><b>${m.title}</b> <small>(${m.wid})</small></span>
+                list.innerHTML = '';
+
+                modList.forEach((m, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'mod-item';
+                    div.draggable = true;
+
+                    div.innerHTML = `
+            <span><span class="mod-index">${i + 1}</span> <b>${m.title}</b> <small>(${m.wid})</small></span>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <label style="font-size:10px;"><input type="checkbox" ${m.isMap ? 'checked' : ''} onchange="toggleMap(${i})"> Map?</label>
+                <button onclick="editMod(${i})" style="background:#444; padding:2px 5px; font-size:10px;">Edit ID</button>
                 <button onclick="removeMod(${i})" style="background:#600; padding:2px 8px;">X</button>
             </div>
-        `).join('');
+        `;
+
+                    // Drag and Drop Logic
+                    div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', i); div.classList.add('dragging'); };
+                    div.ondragend = () => div.classList.remove('dragging');
+                    div.ondragover = (e) => e.preventDefault();
+                    div.ondrop = (e) => {
+                        e.preventDefault();
+                        const fromIndex = e.dataTransfer.getData('text/plain');
+                        const movedItem = modList.splice(fromIndex, 1)[0];
+                        modList.splice(i, 0, movedItem);
+                        renderList();
+                        updateOutput();
+                    };
+
+                    list.appendChild(div);
+                });
             }
+
+            window.editMod = (index) => {
+                const newID = prompt("Manually edit Mod ID (use ; for multiples):", modList[index].name);
+                if (newID !== null) {
+                    modList[index].name = newID;
+                    updateOutput();
+                }
+            };
+
+            window.toggleMap = (index) => {
+                modList[index].isMap = !modList[index].isMap;
+                updateOutput();
+            };
 
             window.removeMod = (index) => {
                 modList.splice(index, 1);
