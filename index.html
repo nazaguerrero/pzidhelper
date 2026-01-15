@@ -391,7 +391,7 @@
 
     <script>
        (function () {
-            const PROXY = 'https://pz-mod-proxy.nazaguerrero.workers.dev';
+            const PROXY = 'https://corsproxy.io/?url=https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/';
             let mods = [];
             let isB42 = true;
             let draggingWID = null;
@@ -477,43 +477,32 @@
                 return await getDetails(wid, true);
             }
 
-            async function getDetails(id, isDirect = false) {
-               console.log("Checking ID:", id); // Check if this shows in Console (F12)
+                async function getDetails(id) {
                try {
-                   const status = document.getElementById('status');
-                   const params = new URLSearchParams();
-                   params.append('itemcount', '1');
-                   params.append('publishedfileids[0]', id);
-                   params.append('includerelations', '1');
+                   // We append the Steam parameters directly to the corsproxy URL
+                   const url = `${PROXY}&itemcount=1&publishedfileids[0]=${id}&includerelations=1`;
 
-                   const r = await fetch(`${PROXY}/steam-details`, {
-                       method: 'POST',
-                       body: params,
-                       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                   });
+                   const r = await fetch(url);
+                   if (!r.ok) throw new Error(`Proxy error: ${r.status}`);
 
                    const j = await r.json();
                    const d = j?.response?.publishedfiledetails?.[0];
 
-                   if (!d || d.result !== 1) {
-                       console.error("Steam API returned no data for:", id);
-                       return null;
-                   }
+                   if (!d || d.result !== 1) return null;
 
                    const description = d.description || "";
                    const title = d.title || "";
 
-                   // Get dependencies from official sidebar
+                   // Dependency Logic
                    let deps = [];
                    if (d.children) {
                        deps = d.children.map(c => String(c.publishedfileid));
                    }
 
-                   // Search description for "Workshop ID: XXXXX"
+                   // Add Workshop ID mentions but BLOCK Bikini Tools (2634426926)
                    const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
                    workshopMatches.forEach(m => {
                        const foundId = String(m[1]);
-                       // Blacklist for Bikini Tools (2634426926) and common non-mod collections
                        if (foundId !== id && foundId !== '2634426926') {
                            deps.push(foundId);
                        }
@@ -523,11 +512,10 @@
                        wid: id,
                        name: title.replace(/[^a-zA-Z0-9_\-]/g, ''),
                        title: title,
-                       needs: [...new Set(deps)] // Remove duplicates
+                       needs: [...new Set(deps)]
                    };
-
                } catch (e) {
-                   console.error("Dependency Check Failed:", e);
+                   console.error("Fetch failed:", e);
                    return null;
                }
            }
