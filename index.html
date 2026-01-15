@@ -391,7 +391,7 @@
 
     <script>
        (function () {
-            const PROXY = 'https://corsproxy.io/?url=https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/';
+            const PROXY = "https://corsproxy.io/?url=https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
             let mods = [];
             let isB42 = true;
             let draggingWID = null;
@@ -477,43 +477,43 @@
                 return await getDetails(wid, true);
             }
 
-            async function getDetails(id, isDirect = false) {
+            async function getDetails(id) {
                try {
                    const status = document.getElementById('status');
-                   // This is a more stable public proxy bridge
-                   const proxyUrl = 'https://corsproxy.io/?url=https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/';
 
+                   // Steam requires a POST with form data to get multiple details/children
                    const params = new URLSearchParams();
                    params.append('itemcount', '1');
                    params.append('publishedfileids[0]', id);
                    params.append('includerelations', '1');
 
-                   const r = await fetch(proxyUrl, {
+                   const r = await fetch(PROXY, {
                        method: 'POST',
                        body: params,
                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
                    });
 
-                   if (!r.ok) throw new Error("Steam API unreachable");
+                   if (!r.ok) throw new Error("Proxy error: " + r.status);
 
                    const j = await r.json();
                    const d = j?.response?.publishedfiledetails?.[0];
 
                    if (!d || d.result !== 1) {
-                       status.textContent = "Mod not found on Steam.";
+                       status.textContent = "Mod not found or Steam API busy.";
                        return null;
                    }
 
                    const description = d.description || "";
                    const title = d.title || "";
 
-                   // Get dependencies (Sidebar + Text)
+                   // Logic for Dependencies
                    let deps = [];
+                   // Official sidebar items
                    if (d.children) {
                        deps = d.children.map(c => String(c.publishedfileid));
                    }
 
-                   // Search text for "Workshop ID" but block Bikini Tools (2634426926)
+                   // Scan text for "Workshop ID" but ignore Bikini Tools
                    const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
                    workshopMatches.forEach(m => {
                        const foundId = String(m[1]);
@@ -522,7 +522,7 @@
                        }
                    });
 
-                   // Get the Mod ID (e.g., "Ranger91")
+                   // Extract Mod ID (e.g. "Ranger91")
                    const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
                    let validIDs = [];
                    modIdMatches.forEach(m => {
@@ -532,7 +532,7 @@
 
                    const finalModID = validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
 
-                   status.innerHTML = `<span style="color:#00ff00">✅ Found: ${title}</span>`;
+                   status.innerHTML = `<span style="color:#00ff00">✅ Added: ${title}</span>`;
 
                    return {
                        wid: id,
@@ -543,8 +543,8 @@
                    };
 
                } catch (e) {
-                   console.error("Fetch error:", e);
-                   document.getElementById('status').textContent = "Proxy Error. Try again in a moment.";
+                   console.error("Fetch failed:", e);
+                   document.getElementById('status').textContent = "Connection Error. Check console.";
                    return null;
                }
            }
