@@ -2,12 +2,10 @@
 <html lang="en">
 
 <head>
-       
-    <meta charset="UTF-8" />
-       
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PZ B42 ID Helper</title>
-        <style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PZ B42 ID Helper</title>
+    <style>
         :root {
             --bg: #111;
             --text: #eee;
@@ -508,12 +506,14 @@
                    const description = d.description || "";
                    const title = d.title || "";
 
+                   // 1. Policy Filter
                    const isPolicy = ['policy', 'permission', 'license'].some(word => title.toLowerCase().includes(word));
                    if (!isDirect && isPolicy) {
                        status.innerHTML = `<div class="warn-box"><strong>⚠️ Non-Mod Item</strong><br>"${title}" is a Policy file.</div>`;
                        return null;
                    }
 
+                   // 2. Mod ID Extractor (from description)
                    const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
                    let validIDs = [];
                    matches.forEach(m => {
@@ -525,7 +525,7 @@
                    const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
                    const isMapKeywords = /map|muldraugh|location|cell/i.test(description + title);
 
-                   // --- OFFICIAL DATA ONLY SCANNER ---
+                   // 3. Official Dependency Scanner (NO TEXT SCANNING)
                    let deps = [];
                    if (d.children && Array.isArray(d.children)) {
                        deps = d.children.map(c => String(c.publishedfileid));
@@ -534,7 +534,6 @@
 
                    status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
 
-                   // This is the part that was missing!
                    return {
                        wid: id,
                        name: finalID,
