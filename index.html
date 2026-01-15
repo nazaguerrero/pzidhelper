@@ -428,57 +428,63 @@
             }
 
                 async function getDetails(id) {
-                    try {
-                        const params = new URLSearchParams();
-                        params.append('itemcount', '1');
-                        params.append('publishedfileids[0]', id);
-                        params.append('includerelations', '1');
+                        try {
+                            const params = new URLSearchParams();
+                            params.append('itemcount', '1');
+                            params.append('publishedfileids[0]', id);
+                            params.append('includerelations', '1');
 
-                        const r = await fetch(`${BASE_PROXY}/steam-details`, {
-                            method: 'POST',
-                            body: params.toString(),
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                        });
+                            const r = await fetch(`${BASE_PROXY}/steam-details`, {
+                                method: 'POST',
+                                body: params.toString(),
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                            });
 
-                        const j = await r.json();
-                        const d = j?.response?.publishedfiledetails?.[0];
-                        if (!d || d.result !== 1) return null;
+                            const text = await r.text();
+                            if (text.startsWith('<html>')) throw new Error("Worker returned HTML error");
 
-                        const description = d.description || "";
-                        const title = d.title || "";
+                            const j = JSON.parse(text);
+                            const d = j?.response?.publishedfiledetails?.[0];
+                            if (!d || d.result !== 1) return null;
 
-                        // Scan for dependencies (Finds 'that DAMN Library')
-                        let deps = [];
-                        if (d.children) deps = d.children.map(c => String(c.publishedfileid));
-                        const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
-                        workshopMatches.forEach(m => {
-                            if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
-                        });
+                            const description = d.description || "";
+                            const title = d.title || "";
 
-                        const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-                        let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
+                            let deps = [];
+                            if (d.children) deps = d.children.map(c => String(c.publishedfileid));
+                            const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
+                            workshopMatches.forEach(m => {
+                                if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
+                            });
 
-                        return {
-                            wid: id,
-                            name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
-                            title: title,
-                            isMap: /map|muldraugh|location|cell/i.test(description + title),
-                            needs: [...new Set(deps)]
-                        };
-                    } catch (e) { return null; }
-                }
+                            const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+                            let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
+
+                            return {
+                                wid: id,
+                                name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
+                                title: title,
+                                isMap: /map|muldraugh|location|cell/i.test(description + title),
+                                needs: [...new Set(deps)]
+                            };
+                        } catch (e) { return null; }
+                    }
 
             async function fetchInfo(query) {
                     const status = document.getElementById('status');
                     try {
                         status.textContent = "Searching Steam Workshop...";
-                        // This matches your Worker's path: /steam-search
+                        // We must use the /steam-search path you defined in your worker
                         const url = `${BASE_PROXY}/steam-search?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
 
                         const r = await fetch(url);
-                        if (!r.ok) throw new Error("Search request failed");
+                        const text = await r.text(); // Get text first to check for HTML errors
 
-                        const j = await r.json();
+                        if (text.startsWith('<html>') || text.startsWith('<!DOCTYPE')) {
+                            throw new Error("Worker returned HTML instead of JSON. Check your worker deployment.");
+                        }
+
+                        const j = JSON.parse(text);
                         const item = j?.response?.publishedfiledetails?.[0];
 
                         if (!item || item.result !== 1) {
@@ -486,7 +492,6 @@
                             return;
                         }
 
-                        // Use the ID found to get the full details
                         const details = await getDetails(item.publishedfileid);
                         if (details) addModToList(details);
                     } catch (e) {
