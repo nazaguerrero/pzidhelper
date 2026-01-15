@@ -453,29 +453,35 @@
                 }
             }
 
-            async function fetchInfo(val) {
-                const status = document.getElementById('status');
-                status.innerHTML = "Searching Steam...";
-                let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
+            async function fetchInfo(query) {
+               try {
+                   const status = document.getElementById('status');
+                   status.textContent = "Searching Steam Workshop...";
 
-                if (!wid) {
-                    try {
-                        const p = new URLSearchParams({ appid: '108600', searchtext: val, section: 'readytouseitems', browsesort: 'trend', p: '1' });
-                        const r = await fetch(`${PROXY}/steam-search?${p}`);
-                        const t = await r.text();
-                        const results = [];
-                        const searchRegex = /sharedfiles\/filedetails\/\?id=(\d+)[\s\S]*?workshopItemTitle[^>]*>([\s\S]*?)<\/div>/gi;
-                        let m;
-                        while ((m = searchRegex.exec(t)) !== null && results.length < 5) {
-                            results.push({ wid: m[1], title: m[2].replace(/<[^>]+>/g, '').replace(/ID:|Learn More/gi, '').trim() });
-                        }
-                        if (results.length === 0) { status.textContent = "No results found."; return null; }
-                        showResults(results);
-                        return null;
-                    } catch (e) { status.textContent = "Search failed."; return null; }
-                }
-                return await getDetails(wid, true);
-            }
+                   // NEW SEARCH PROXY URL
+                   const searchProxy = `https://corsproxy.io/?url=https://api.steampowered.com/IPublishedFileService/QueryFiles/v1/?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
+
+                   const r = await fetch(searchProxy);
+                   if (!r.ok) throw new Error("Search failed");
+
+                   const j = await r.json();
+                   const item = j?.response?.publishedfiledetails?.[0];
+
+                   if (!item || item.result !== 1) {
+                       status.textContent = "No mods found with that name.";
+                       return;
+                   }
+
+                   // Once we find the ID from the name, we use our existing getDetails logic
+                   const details = await getDetails(item.publishedfileid);
+                   if (details) {
+                       addModToList(details);
+                   }
+               } catch (e) {
+                   console.error("Search Error:", e);
+                   document.getElementById('status').textContent = "Search Error. Use Workshop ID instead.";
+               }
+           }
 
             async function getDetails(id) {
                try {
