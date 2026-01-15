@@ -388,371 +388,83 @@
             </div>
                 </div>
     </div>
-
     <script>
-       (function () {
-            const PROXY = "https://corsproxy.io/?url=https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
-            let mods = [];
-            let isB42 = true;
-            let draggingWID = null;
 
-            document.addEventListener('DOMContentLoaded', () => {
-                loadFromDisk();
-                document.getElementById('v41').onclick = () => { isB42 = false; updateToggleUI(); };
-                document.getElementById('v42').onclick = () => { isB42 = true; updateToggleUI(); };
-                document.getElementById('addBtn').onclick = handleAdd;
-                document.getElementById('mainInput').onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
-
-                document.getElementById('copyW').onclick = () => copyText('outW');
-                document.getElementById('copyM').onclick = () => copyText('outM');
-                document.getElementById('copyMap').onclick = () => copyText('outMap');
-
-                document.getElementById('localFilter').oninput = (e) => {
-                    const term = e.target.value.toLowerCase();
-                    const items = document.querySelectorAll('.mod-item');
-                    items.forEach(item => item.classList.remove('search-highlight'));
-                    if (term.length < 2) return;
-                    for (const item of items) {
-                        if (item.innerText.toLowerCase().includes(term)) {
-                            item.classList.add('search-highlight');
-                            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            break;
-                        }
-                    }
-                };
-
-                document.addEventListener('click', (e) => {
-                    const list = document.querySelector('.search-results-list');
-                    const inputCont = document.getElementById('input-container');
-                    if (list && !inputCont.contains(e.target)) list.remove();
-                });
-
-                render();
-            });
-
-            function updateToggleUI() {
-                document.getElementById('v41').classList.toggle('active', !isB42);
-                document.getElementById('v42').classList.toggle('active', isB42);
-                updateOut();
-            }
-
-            function saveToDisk() { localStorage.setItem('pz_helper_pro_v3', JSON.stringify(mods)); }
-            function loadFromDisk() {
-                const saved = localStorage.getItem('pz_helper_pro_v3');
-                if (saved) { try { mods = JSON.parse(saved); } catch (e) { mods = []; } }
-            }
-
-            async function handleAdd() {
-                const input = document.getElementById('mainInput');
-                const val = input.value.trim();
-                if (!val) return;
-                const info = await fetchInfo(val);
-                if (info) {
-                    addModToList(info);
-                    input.value = '';
-                }
-            }
-
-            async function fetchInfo(query) {
-               try {
-                   const status = document.getElementById('status');
-                   status.textContent = "Searching Steam Workshop...";
-
-                   // NEW SEARCH PROXY URL
-                   const searchProxy = `https://corsproxy.io/?url=https://api.steampowered.com/IPublishedFileService/QueryFiles/v1/?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
-
-                   const r = await fetch(searchProxy);
-                   if (!r.ok) throw new Error("Search failed");
-
-                   const j = await r.json();
-                   const item = j?.response?.publishedfiledetails?.[0];
-
-                   if (!item || item.result !== 1) {
-                       status.textContent = "No mods found with that name.";
-                       return;
-                   }
-
-                   // Once we find the ID from the name, we use our existing getDetails logic
-                   const details = await getDetails(item.publishedfileid);
-                   if (details) {
-                       addModToList(details);
-                   }
-               } catch (e) {
-                   console.error("Search Error:", e);
-                   document.getElementById('status').textContent = "Search Error. Use Workshop ID instead.";
-               }
-           }
-
-            async function getDetails(id) {
-               try {
-                   const status = document.getElementById('status');
-
-                   // Steam requires a POST with form data to get multiple details/children
-                   const params = new URLSearchParams();
-                   params.append('itemcount', '1');
-                   params.append('publishedfileids[0]', id);
-                   params.append('includerelations', '1');
-
-                   const r = await fetch(PROXY, {
-                       method: 'POST',
-                       body: params,
-                       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                   });
-
-                   if (!r.ok) throw new Error("Proxy error: " + r.status);
-
-                   const j = await r.json();
-                   const d = j?.response?.publishedfiledetails?.[0];
-
-                   if (!d || d.result !== 1) {
-                       status.textContent = "Mod not found or Steam API busy.";
-                       return null;
-                   }
-
-                   const description = d.description || "";
-                   const title = d.title || "";
-
-                   // Logic for Dependencies
-                   let deps = [];
-                   // Official sidebar items
-                   if (d.children) {
-                       deps = d.children.map(c => String(c.publishedfileid));
-                   }
-
-                   // Scan text for "Workshop ID" but ignore Bikini Tools
-                   const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
-                   workshopMatches.forEach(m => {
-                       const foundId = String(m[1]);
-                       if (foundId !== id && foundId !== '2634426926') {
-                           deps.push(foundId);
-                       }
-                   });
-
-                   // Extract Mod ID (e.g. "Ranger91")
-                   const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-                   let validIDs = [];
-                   modIdMatches.forEach(m => {
-                       const idText = m[1].split('\n')[0].trim();
-                       if (idText.length > 0) validIDs.push(idText);
-                   });
-
-                   const finalModID = validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
-
-                   status.innerHTML = `<span style="color:#00ff00">✅ Added: ${title}</span>`;
-
-                   return {
-                       wid: id,
-                       name: finalModID,
-                       isMap: /map|muldraugh|location|cell/i.test(description + title),
-                       title: title,
-                       needs: [...new Set(deps)]
-                   };
-
-               } catch (e) {
-                   console.error("Fetch failed:", e);
-                   document.getElementById('status').textContent = "Connection Error. Check console.";
-                   return null;
-               }
-           }
-
-            function showResults(data) {
-                const container = document.getElementById('input-container');
-                const old = document.querySelector('.search-results-list');
-                if (old) old.remove();
-                const list = document.createElement('div');
-                list.className = 'search-results-list';
-                list.innerHTML = `<div style="padding:10px; background:#111; border-bottom:1px solid #444; display:flex; justify-content:space-between; align-items:center;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span><button type="button" onclick="this.closest('.search-results-list').remove()" style="background:none; border:none; color:#f44; cursor:pointer; font-weight:bold; font-size:16px;">✕</button></div>`;
-                data.forEach(item => {
-                    const b = document.createElement('button');
-                    b.className = 'search-item-btn';
-                    b.innerHTML = `<b>${item.title}</b><small>Workshop ID: ${item.wid}</small>`;
-                    b.onclick = async (e) => {
-                        e.stopPropagation(); list.remove(); document.getElementById('mainInput').value = '';
-                        const details = await getDetails(item.wid, false);
-                        if (details) addModToList(details);
-                    };
-                    list.appendChild(b);
-                });
-                container.appendChild(list);
-            }
-
-            function addModToList(obj) {
-                const status = document.getElementById('status');
-                const existingIndex = mods.findIndex(m => String(m.wid) === String(obj.wid));
-
-                if (existingIndex !== -1) {
-                    status.innerHTML = `<div style="background:#600; color:white; padding:8px; border:1px solid red; border-radius:4px;">⚠️ DUPLICATE: Already at position #${existingIndex + 1}</div>`;
-                    const items = document.querySelectorAll('.mod-item');
-                    const duplicateItem = items[existingIndex];
-                    if (duplicateItem) {
-                        duplicateItem.classList.add('duplicate-error');
-                        duplicateItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        setTimeout(() => duplicateItem.classList.remove('duplicate-error'), 2000);
-                    }
-                    return;
-                }
-
-                mods.push(obj);
-                render();
-                saveToDisk();
-            }
-
-            function render() {
-                const list = document.getElementById('modlist');
-                const filter = document.getElementById('localFilter');
-                list.innerHTML = '';
-
-                if (mods.length === 0) {
-                    list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px; margin:10px;">No mods added yet.</div>`;
-                    filter.style.display = 'none';
-                    updateOut();
-                    return;
-                }
-
-                filter.style.display = mods.length > 5 ? 'block' : 'none';
-
-                const header = document.createElement('div');
-                header.className = 'list-header';
-                header.innerHTML = `
-            <div><h3 style="display:inline; margin:0;">Added Mods</h3><span class="count-badge">${mods.length}</span></div>
-            <div style="display:flex; gap:8px;">
-                <button id="jumpTop" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↑ Top</button>
-                <button id="jumpBottom" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↓ End</button>
-                <button id="clrBtn" style="background:#900; padding:5px 10px; font-size:12px; color:white; border:none; border-radius:4px; cursor:pointer;">Clear All</button>
-            </div>`;
-                list.appendChild(header);
-
-                document.getElementById('jumpTop').onclick = () => list.scrollTo({ top: 0, behavior: 'smooth' });
-                document.getElementById('jumpBottom').onclick = () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-                document.getElementById('clrBtn').onclick = () => { if (confirm("Clear everything?")) { mods = []; saveToDisk(); render(); } };
-
-                mods.forEach((m, i) => {
-                    const d = document.createElement('div');
-                    d.className = 'mod-item';
-                    d.draggable = true;
-                    d.dataset.wid = m.wid;
-                    d.innerHTML = `
-                <span>
-                    <span class="mod-index">${i + 1}</span>
-                    <b class="mod-id-label">${m.name}</b> 
-                    <small style="color:#888;">(${m.wid})</small>
-                </span>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <label style="font-size:10px; color:#888;">Map?</label>
-                    <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
-                    <button type="button" class="edit-btn" style="background:#444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✎</button>
-                    <button type="button" class="rmv-btn" style="background:#900; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">X</button>
-                </div>`;
-
-                    d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
-                    d.querySelector('.edit-btn').onclick = (e) => {
-                        e.stopPropagation();
-                        const label = d.querySelector('.mod-id-label');
-                        const input = document.createElement('input');
-                        input.className = 'edit-input';
-                        input.value = m.name;
-                        input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
-                        input.onkeydown = (ev) => { if (ev.key === 'Enter') input.blur(); };
-                        label.replaceWith(input);
-                        input.focus();
-                    };
-                    d.querySelector('.rmv-btn').onclick = (e) => { e.stopPropagation(); mods.splice(i, 1); saveToDisk(); render(); };
-                    d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; };
-                    d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
-
-                    // Improved Dependency UI
-                    if (m.needs && m.needs.length > 0) {
-                        const missing = m.needs.filter(needId => !mods.some(existing => String(existing.wid) === String(needId)));
-                        if (missing.length > 0) {
-                            const warnDiv = document.createElement('div');
-                            warnDiv.className = 'dep-warning';
-                            warnDiv.style.width = "100%";
-                            warnDiv.style.marginTop = "10px";
-
-                            // Create the header text
-                            warnDiv.innerHTML = `⚠️ <b>Required Mods:</b> <small>(Click ID to add automatically)</small><br>`;
-
-                            // Create buttons for each missing ID
-                            missing.forEach(id => {
-                                const btn = document.createElement('button');
-                                btn.textContent = id;
-                                btn.className = 'dep-id'; // Uses your existing blue styling
-                                btn.style.margin = "4px 4px 0 0";
-                                btn.style.cursor = "pointer";
-                                btn.style.border = "1px solid #00d4ff";
-
-                                btn.onclick = (e) => {
-                                    e.preventDefault();
-                                    const input = document.getElementById('mainInput');
-                                    input.value = id;
-                                    document.getElementById('addBtn').click();
-                                };
-                                warnDiv.appendChild(btn);
-                            });
-
-                            d.style.flexWrap = "wrap";
-                            d.appendChild(warnDiv);
-                        }
-                    }
-                    list.appendChild(d);
-                });
-                updateOut();
-            }
-
-            function updateOut() {
-                const outW = document.getElementById('outW');
-                const outM = document.getElementById('outM');
-                const outMap = document.getElementById('outMap');
-                if (!mods.length) {
-                    outW.innerHTML = ''; outM.innerHTML = ''; outMap.innerHTML = 'Muldraugh, KY';
-                    return;
-                }
-                const wStr = mods.map(m => (String(m.wid) === String(draggingWID)) ? `<span class="highlight-text">${m.wid}</span>` : m.wid).join(';');
-                const mStr = mods.map(m => {
-                    const names = m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
-                    return (String(m.wid) === String(draggingWID)) ? `<span class="highlight-text">${names}</span>` : names;
-                }).join(';');
-                const mapMods = mods.filter(m => m.isMap).map(m => m.name.split(';')[0].trim());
-                mapMods.push("Muldraugh, KY");
-                outW.innerHTML = wStr;
-                outM.innerHTML = mStr;
-                outMap.innerHTML = mapMods.join(';');
-            }
-
-            function copyText(id) {
-                const el = document.getElementById(id);
-                navigator.clipboard.writeText(el.textContent).then(() => {
-                    el.classList.add('copy-flash');
-                    setTimeout(() => el.classList.remove('copy-flash'), 600);
-                });
-            }
-
-            document.getElementById('modlist').addEventListener('dragover', e => {
-                e.preventDefault();
-                const dragging = document.querySelector('.dragging');
-                if (!dragging) return;
-                const list = document.getElementById('modlist');
-                const afterElement = getDragAfterElement(list, e.clientY);
-                if (afterElement == null) list.appendChild(dragging);
-                else list.insertBefore(dragging, afterElement);
-
-                const currentItems = [...document.querySelectorAll('.mod-item')];
-                mods = currentItems.map(item => mods.find(m => String(m.wid) === String(item.dataset.wid)));
-                currentItems.forEach((item, idx) => { item.querySelector('.mod-index').textContent = idx + 1; });
-                saveToDisk();
-                updateOut();
-            });
-
-            function getDragAfterElement(container, y) {
-                const draggables = [...container.querySelectorAll('.mod-item:not(.dragging)')];
-                return draggables.reduce((closest, child) => {
-                    const box = child.getBoundingClientRect();
-                    const offset = y - box.top - box.height / 2;
-                    return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
-                }, { offset: Number.NEGATIVE_INFINITY }).element;
-            }
-        })(); 
-    </script>
+    const PROXY = "https://corsproxy.io/?url=";
+    const STEAM_API = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
+    const SEARCH_API = "https://api.steampowered.com/IPublishedFileService/QueryFiles/v1/";
+    
+    async function getDetails(id) {
+    try {
+    const status = document.getElementById('status');
+    // Construct the URL for the proxy
+    const targetUrl = `${STEAM_API}?itemcount=1&publishedfileids[0]=${id}&includerelations=1`;
+    
+    const r = await fetch(PROXY + encodeURIComponent(targetUrl));
+    if (!r.ok) throw new Error("Steam API unreachable");
+    
+    const j = await r.json();
+    const d = j?.response?.publishedfiledetails?.[0];
+    
+    if (!d || d.result !== 1) return null;
+    
+    const description = d.description || "";
+    const title = d.title || "";
+    
+    // Dependency Logic (Sidebar + Text)
+    let deps = [];
+    if (d.children) deps = d.children.map(c => String(c.publishedfileid));
+    
+    const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
+    workshopMatches.forEach(m => {
+    const foundId = String(m[1]);
+    if (foundId !== id && foundId !== '2634426926') deps.push(foundId);
+    });
+    
+    const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+    let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(id => id.length > 0);
+    
+    return {
+    wid: id,
+    name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
+    title: title,
+    isMap: /map|muldraugh|location|cell/i.test(description + title),
+    needs: [...new Set(deps)]
+    };
+    } catch (e) {
+    console.error("Detail Fetch Error:", e);
+    return null;
+    }
+    }
+    
+    async function fetchInfo(query) {
+    const status = document.getElementById('status');
+    // If user typed a numbers-only ID, skip search and go straight to details
+    if (/^\d+$/.test(query)) {
+    const d = await getDetails(query);
+    if (d) addModToList(d);
+    return;
+    }
+    
+    try {
+    status.textContent = "Searching...";
+    const targetUrl =
+    `${SEARCH_API}?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
+    
+    const r = await fetch(PROXY + encodeURIComponent(targetUrl));
+    const j = await r.json();
+    const item = j?.response?.publishedfiledetails?.[0];
+    
+    if (!item) throw new Error("No results");
+    
+    const details = await getDetails(item.publishedfileid);
+    if (details) addModToList(details);
+    } catch (e) {
+    status.textContent = "Search failed. Try using the Workshop ID number.";
+    console.error("Search Error:", e);
+    }
+    }
+</script>
 </body>
 
 </html>
