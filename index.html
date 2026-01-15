@@ -526,42 +526,23 @@
                     const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
                     const isMapKeywords = /map|muldraugh|location|cell/i.test(description + title);
 
-                    // --- UPDATED DEPENDENCY SCANNER ---
-                    // 1. Capture Official Steam "Required Items" (from the sidebar)
-                    let deps = [];
+                    // --- REFINED DEPENDENCY SCANNER ---
+                    let officialDeps = [];
+
+                    // 1. Get ONLY the official "Required Items" from the sidebar
                     if (d.children && Array.isArray(d.children)) {
-                        deps = d.children.map(c => String(c.publishedfileid));
+                        officialDeps = d.children.map(c => String(c.publishedfileid));
                     }
 
-                    // 2. Add IDs found in the text description (Plan B & C)
+                    // 2. Scan text ONLY for "Workshop ID" matches (reduces false positives)
+                    let textDeps = [];
                     const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
                     workshopMatches.forEach(m => {
-                        if (m[1] !== id) deps.push(String(m[1]));
+                        if (m[1] !== id) textDeps.push(String(m[1]));
                     });
 
-                    const urlMatches = [...description.matchAll(/filedetails\/\?id=(\d+)/gi)];
-                    urlMatches.forEach(m => {
-                        if (m[1] !== id) deps.push(String(m[1]));
-                    });
-
-                    // 3. Clean up and remove duplicates
-                    const finalDeps = [...new Set(deps)];
-                    // --- END UPDATED DEPENDENCY SCANNER ---
-
-                    status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
-
-                    return {
-                        wid: id,
-                        name: finalID,
-                        isMap: isMapKeywords,
-                        title: title,
-                        needs: finalDeps // <--- Make sure this says finalDeps
-                    };
-                } catch (e) {
-                    document.getElementById('status').textContent = "Error fetching details.";
-                    return null;
-                }
-            }
+                    // 3. COMBINE: Official sidebar items + specifically tagged Workshop IDs from text
+                    const finalDeps = [...new Set([...officialDeps, ...textDeps])];
 
             function showResults(data) {
                 const container = document.getElementById('input-container');
