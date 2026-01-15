@@ -389,9 +389,8 @@
                 </div>
     </div>
     <script>
-        const PROXY = "https://corsproxy.io/?url=";
-            const STEAM_API = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
-            const SEARCH_API = "https://api.steampowered.com/IPublishedFileService/QueryFiles/v1/";
+        // Replace this with your actual Workers URL from the Cloudflare dashboard
+            const BASE_PROXY = "https://pz-mod-proxy.nazaguerrero.workers.dev";    
 
             let modList = [];
             let isV42 = true;
@@ -429,38 +428,50 @@
             }
 
             async function getDetails(id) {
-                try {
-                    const status = document.getElementById('status');
-                    const targetUrl = `${STEAM_API}?itemcount=1&publishedfileids[0]=${id}&includerelations=1`;
-                    const r = await fetch(PROXY + encodeURIComponent(targetUrl));
-                    const j = await r.json();
-                    const d = j?.response?.publishedfiledetails?.[0];
+                    try {
+                        const params = new URLSearchParams();
+                        params.append('itemcount', '1');
+                        params.append('publishedfileids[0]', id);
+                        params.append('includerelations', '1');
 
-                    if (!d || d.result !== 1) return null;
+                        // Note the path /steam-details
+                        const r = await fetch(`${BASE_PROXY}/steam-details`, {
+                            method: 'POST',
+                            body: params,
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                        });
 
-                    const desc = d.description || "";
-                    const title = d.title || "";
+                        const j = await r.json();
+                        const d = j?.response?.publishedfiledetails?.[0];
 
-                    let deps = [];
-                    if (d.children) deps = d.children.map(c => String(c.publishedfileid));
+                        if (!d || d.result !== 1) return null;
 
-                    const workshopMatches = [...desc.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
-                    workshopMatches.forEach(m => {
-                        if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
-                    });
+                        const description = d.description || "";
+                        const title = d.title || "";
 
-                    const modIdMatches = [...desc.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-                    let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
+                        // --- DEPENDENCY LOGIC ---
+                        let deps = [];
+                        // Check official sidebar dependencies
+                        if (d.children) {
+                            deps = d.children.map(c => String(c.publishedfileid));
+                        }
+                        // Scan text for "Workshop ID" (Finds 'that DAMN Library')
+                        const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
+                        workshopMatches.forEach(m => {
+                            if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
+                        });
 
-                    return {
-                        wid: id,
-                        name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
-                        title: title,
-                        isMap: /map|muldraugh|location|cell/i.test(desc + title),
-                        needs: [...new Set(deps)]
-                    };
-                } catch (e) { return null; }
-            }
+                        return {
+                            wid: id,
+                            name: title.replace(/[^a-zA-Z0-9_\-]/g, ''),
+                            title: title,
+                            needs: [...new Set(deps)] // This captures the dependencies!
+                        };
+                    } catch (e) {
+                        console.error("Worker Error:", e);
+                        return null;
+                    }
+                }
 
             async function fetchInfo(query) {
                 const status = document.getElementById('status');
