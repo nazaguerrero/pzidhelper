@@ -1,47 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>PZ B42 ID Helper</title>
-        <style>
-            :root {
-                --bg: #111;
-                --text: #eee;
-                --accent: #ff6600;
-                --card: #222;
-                --btn: #444;
-                --btn-hover: #666;
-                --success: #008800;
-                --output: #0f0;
-            }
-        
-            body {
-                font-family: sans-serif;
-                background: var(--bg);
-                color: var(--text);
-                padding: 1rem;
-                margin: 0;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                /* This centers the content */
-            }
-        
-            .container {
-                width: 100%;
-                max-width: 800px;
-                margin: 0 auto;
-            }
-        
-            h1 {
-                color: var(--accent);
-                text-align: center;
-                margin: 10px 0 20px 0;
-                font-size: 2.2rem;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            }
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PZ B42 ID Helper</title>
+    <style>
+        :root {
+            --bg: #111;
+            --text: #eee;
+            --accent: #ff6600;
+            --card: #222;
+            --btn: #444;
+            --btn-hover: #666;
+            --danger: #cc0000;
+            --success: #008800;
+            --output: #0f0;
+            --warning: #ffcc00;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 1rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--accent);
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
 
         .version-toggle {
             display: flex;
@@ -322,25 +321,6 @@
             animation: shake 0.4s ease-in-out;
             background: #400 !important;
         }
-
-        .dep-warning {
-            display: block !important;
-            visibility: visible !important;
-            background: #554400 !important;
-            color: white !important;
-            border: 1px solid orange !important;
-            padding: 10px !important;
-            z-index: 100;
-        }
-
-        .dep-id {
-            font-family: monospace;
-            background: #000;
-            padding: 2px 5px;
-            border-radius: 3px;
-            color: #00d4ff;
-            font-weight: bold;
-        }
     </style>
 </head>
 
@@ -348,245 +328,338 @@
     <div class="container">
         <h1>PZ B42 ID Helper</h1>
         <div class="version-toggle">
-            <label style="font-size: 0.9rem; color: #888; font-weight: bold;">OUTPUT FORMAT:</label>
             <button id="v41" class="v-btn">B41 (Legacy)</button>
             <button id="v42" class="v-btn active">B42 (Backslash \)</button>
         </div>
-           
-            <div id="input-container">
-                    <input type="text" id="mainInput" placeholder="Workshop ID, URL, or Mod Name..." />
-                    <button id="addBtn">Add Mod</button>
-                </div>
-            <div id="status">Ready.</div>
 
-            <input type="text" id="localFilter" placeholder="🔍 Find & Highlight a mod in your list..." />
-            <div id="modlist"></div>
+        <div id="input-container">
+            <input type="text" id="mainInput" placeholder="Workshop ID, URL, or Mod Name..." />
+            <button id="addBtn">Add Mod</button>
+        </div>
+        <div id="status">Ready.</div>
 
-            <div style="margin-top: 30px;">
-                    <div style="margin-top: 20px;">
-                            <strong style="color: var(--accent);">Mods=</strong>
-                           
+        <input type="text" id="localFilter" placeholder="🔍 Find & Highlight a mod in your list..." />
+        <div id="modlist"></div>
+
+        <div style="margin-top: 30px;">
+            <div style="margin-top: 20px;">
+                <strong style="color: var(--accent);">Mods=</strong>
                 <pre id="outM"></pre>
-                            <button id="copyM" style="background:var(--success)">📋 Copy Mods Line</button>
-                       
+                <button id="copyM" style="background:var(--success)">📋 Copy Mods Line</button>
             </div>
 
-                    <div style="margin-top: 20px;">
-                            <strong style="color: var(--accent);">Map=</strong>
-                           
+            <div style="margin-top: 20px;">
+                <strong style="color: var(--accent);">Map=</strong>
                 <pre id="outMap"></pre>
-                            <button id="copyMap" style="background:var(--success)">📋 Copy Map Line</button>
-                       
+                <button id="copyMap" style="background:var(--success)">📋 Copy Map Line</button>
             </div>
 
-                    <div style="margin-top: 20px;">
-                            <strong style="color: var(--accent);">WorkshopItems=</strong>
-                           
+            <div style="margin-top: 20px;">
+                <strong style="color: var(--accent);">WorkshopItems=</strong>
                 <pre id="outW"></pre>
-                            <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems Line</button>
-                       
+                <button id="copyW" style="background:var(--success)">📋 Copy WorkshopItems Line</button>
             </div>
-                </div>
+        </div>
     </div>
+
     <script>
-        // Point to your private worker
-            const BASE_PROXY = "https://pz-mod-proxy.nazaguerrero.workers.dev";
+        (function () {
+            const PROXY = 'https://pz-mod-proxy.nazaguerrero.workers.dev';
+            let mods = [];
+            let isB42 = true;
+            let draggingWID = null;
 
-            let modList = [];
-            let isV42 = true;
+            document.addEventListener('DOMContentLoaded', () => {
+                loadFromDisk();
+                document.getElementById('v41').onclick = () => { isB42 = false; updateToggleUI(); };
+                document.getElementById('v42').onclick = () => { isB42 = true; updateToggleUI(); };
+                document.getElementById('addBtn').onclick = handleAdd;
+                document.getElementById('mainInput').onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
 
-            // 1. Hook up the buttons
-            document.getElementById('addBtn').onclick = handleAdd;
-            document.getElementById('mainInput').onkeydown = (e) => { if (e.key === 'Enter') handleAdd(); };
-            document.getElementById('v41').onclick = () => { setVersion(false); };
-            document.getElementById('v42').onclick = () => { setVersion(true); };
+                document.getElementById('copyW').onclick = () => copyText('outW');
+                document.getElementById('copyM').onclick = () => copyText('outM');
+                document.getElementById('copyMap').onclick = () => copyText('outMap');
 
-            // Copy Buttons logic
-            document.getElementById('copyM').onclick = () => copyToClipboard('outM');
-            document.getElementById('copyMap').onclick = () => copyToClipboard('outMap');
-            document.getElementById('copyW').onclick = () => copyToClipboard('outW');
+                document.getElementById('localFilter').oninput = (e) => {
+                    const term = e.target.value.toLowerCase();
+                    const items = document.querySelectorAll('.mod-item');
+                    items.forEach(item => item.classList.remove('search-highlight'));
+                    if (term.length < 2) return;
+                    for (const item of items) {
+                        if (item.innerText.toLowerCase().includes(term)) {
+                            item.classList.add('search-highlight');
+                            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            break;
+                        }
+                    }
+                };
 
-            function setVersion(val) {
-                isV42 = val;
-                document.getElementById('v42').classList.toggle('active', val);
-                document.getElementById('v41').classList.toggle('active', !val);
-                updateOutput();
+                document.addEventListener('click', (e) => {
+                    const list = document.querySelector('.search-results-list');
+                    const inputCont = document.getElementById('input-container');
+                    if (list && !inputCont.contains(e.target)) list.remove();
+                });
+
+                render();
+            });
+
+            function updateToggleUI() {
+                document.getElementById('v41').classList.toggle('active', !isB42);
+                document.getElementById('v42').classList.toggle('active', isB42);
+                updateOut();
             }
 
-            function copyToClipboard(id) {
-                const text = document.getElementById(id).textContent;
-                navigator.clipboard.writeText(text);
-                document.getElementById(id).classList.add('copy-flash');
-                setTimeout(() => document.getElementById(id).classList.remove('copy-flash'), 600);
+            function saveToDisk() { localStorage.setItem('pz_helper_pro_v3', JSON.stringify(mods)); }
+            function loadFromDisk() {
+                const saved = localStorage.getItem('pz_helper_pro_v3');
+                if (saved) { try { mods = JSON.parse(saved); } catch (e) { mods = []; } }
             }
 
             async function handleAdd() {
                 const input = document.getElementById('mainInput');
-                const query = input.value.trim();
-                if (!query) return;
-
-                let id = query;
-                if (query.includes('id=')) {
-                    id = query.split('id=')[1].split('&')[0];
-                }
-
-                input.value = '';
-                if (/^\d+$/.test(id)) {
-                    const d = await getDetails(id);
-                    if (d) addModToList(d);
-                } else {
-                    await fetchInfo(query);
+                const val = input.value.trim();
+                if (!val) return;
+                const info = await fetchInfo(val);
+                if (info) {
+                    addModToList(info);
+                    input.value = '';
                 }
             }
 
-            async function getDetails(id) {
-                try {
-                    const params = new URLSearchParams();
-                    params.append('itemcount', '1');
-                    params.append('publishedfileids[0]', id);
-                    params.append('includerelations', '1');
+            async function fetchInfo(val) {
+                const status = document.getElementById('status');
+                status.innerHTML = "Searching Steam...";
+                let wid = /^\d{7,}$/.test(val) ? val : (val.match(/[?&]id=(\d+)/i)?.[1] || null);
 
-                    const r = await fetch(`${BASE_PROXY}/steam-details`, {
+                if (!wid) {
+                    try {
+                        const r = await fetch(`${PROXY}/steam-search?search_text=${encodeURIComponent(val)}&numberresults=5`);
+                        const j = await r.json();
+                        // Look for the results in the response
+                        const items = j?.response?.publishedfiledetails || [];
+
+                        if (items.length === 0) { status.textContent = "No results found."; return null; }
+
+                        showResults(items);
+                        status.innerHTML = "Select a mod from the list.";
+                        return null;
+                    } catch (e) { status.textContent = "Search failed."; return null; }
+                }
+                return await getDetails(wid, true);
+            }
+
+            async function getDetails(id, isDirect = false) {
+                try {
+                    const status = document.getElementById('status');
+                    const params = new URLSearchParams({ 'itemcount': '1', 'publishedfileids[0]': id });
+
+                    const r = await fetch(`${PROXY}/steam-details`, {
                         method: 'POST',
                         body: params.toString(),
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
                     });
-
-                    const text = await r.text();
-                    if (text.startsWith('<html>')) throw new Error("Worker returned HTML error");
-
-                    const j = JSON.parse(text);
+                    const j = await r.json();
                     const d = j?.response?.publishedfiledetails?.[0];
+
                     if (!d || d.result !== 1) return null;
 
                     const description = d.description || "";
-                    const title = d.title || "";
+                    const title = d.title || "Unknown Mod";
 
-                    let deps = [];
-                    if (d.children) deps = d.children.map(c => String(c.publishedfileid));
-                    const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
-                    workshopMatches.forEach(m => {
-                        if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
+                    const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+                    let validIDs = [];
+                    matches.forEach(m => {
+                        const idText = m[1].split('\n')[0].trim();
+                        if (idText.length > 0) validIDs.push(idText);
                     });
 
-                    const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
-                    let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
+                    let uniqueIDs = [...new Set(validIDs)];
+                    const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+                    const isMapKeywords = /map|muldraugh|creek|leaf|yanghu|location|town|cell/i.test(description + title);
 
-                    return {
-                        wid: id,
-                        name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
-                        title: title,
-                        isMap: /map|muldraugh|location|cell/i.test(description + title),
-                        needs: [...new Set(deps)]
-                    };
+                    status.innerHTML = `<span style="color:#00ff00">✅ Added: ${title}</span>`;
+                    return { wid: id, name: finalID, isMap: isMapKeywords };
                 } catch (e) { return null; }
             }
 
-            async function fetchInfo(query) {
+            function showResults(items) {
+                const container = document.getElementById('input-container');
+                const old = document.querySelector('.search-results-list');
+                if (old) old.remove();
+
+                const list = document.createElement('div');
+                list.className = 'search-results-list';
+                list.innerHTML = `<div style="padding:10px; background:#111; border-bottom:1px solid #444; display:flex; justify-content:space-between; align-items:center;"><span style="font-size:12px; font-weight:bold; color:#888;">SEARCH RESULTS</span><button type="button" onclick="this.closest('.search-results-list').remove()" style="background:none; border:none; color:#f44; cursor:pointer; font-weight:bold; font-size:16px;">✕</button></div>`;
+
+                // FIXED LOOP: Using the correct property for title and ID
+                items.forEach(item => {
+                    const b = document.createElement('button');
+                    b.className = 'search-item-btn';
+
+                    // The API returns title as 'title' or 'name' depending on search type
+                    const modTitle = item.title || item.name || "Unknown Title";
+                    const modID = item.publishedfileid || item.wid;
+
+                    b.innerHTML = `<b>${modTitle}</b><small>Workshop ID: ${modID}</small>`;
+                    b.onclick = async (e) => {
+                        e.stopPropagation();
+                        list.remove();
+                        document.getElementById('mainInput').value = '';
+                        const details = await getDetails(modID, false);
+                        if (details) addModToList(details);
+                    };
+                    list.appendChild(b);
+                });
+                container.appendChild(list);
+            }
+
+            function addModToList(obj) {
                 const status = document.getElementById('status');
-                try {
-                    status.textContent = "Searching Steam Workshop...";
-                    const url = `${BASE_PROXY}/steam-search?appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
+                const existingIndex = mods.findIndex(m => String(m.wid) === String(obj.wid));
 
-                    const r = await fetch(url);
-                    const text = await r.text();
-
-                    if (text.startsWith('<html>') || text.startsWith('<!DOCTYPE')) {
-                        throw new Error("Worker returned HTML. Check deployment.");
+                if (existingIndex !== -1) {
+                    status.innerHTML = `<div style="background:#600; color:white; padding:8px; border:1px solid red; border-radius:4px;">⚠️ DUPLICATE: Already at position #${existingIndex + 1}</div>`;
+                    const items = document.querySelectorAll('.mod-item');
+                    const duplicateItem = items[existingIndex];
+                    if (duplicateItem) {
+                        duplicateItem.classList.add('duplicate-error');
+                        duplicateItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setTimeout(() => duplicateItem.classList.remove('duplicate-error'), 2000);
                     }
-
-                    const j = JSON.parse(text);
-                    const item = j?.response?.publishedfiledetails?.[0];
-
-                    if (!item || item.result !== 1) {
-                        status.textContent = "No mods found with that name.";
-                        return;
-                    }
-
-                    const details = await getDetails(item.publishedfileid);
-                    if (details) addModToList(details);
-                    status.textContent = "Ready.";
-                } catch (e) {
-                    status.textContent = "Search failed.";
-                    console.error(e);
+                    return;
                 }
+
+                mods.push(obj);
+                render();
+                saveToDisk();
+                setTimeout(() => {
+                    const list = document.getElementById('modlist');
+                    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+                }, 100);
             }
 
-            function addModToList(mod) {
-                if (modList.some(m => m.wid === mod.wid)) return;
-                modList.push(mod);
-
-                if (mod.needs.length > 0) {
-                    mod.needs.forEach(async (depId) => {
-                        const dep = await getDetails(depId);
-                        if (dep) addModToList(dep);
-                    });
-                }
-                renderList();
-                updateOutput();
-            }
-
-            // RESTORED: Full renderList with Drag, Edit, and Map Toggle
-            function renderList() {
+            function render() {
                 const list = document.getElementById('modlist');
+                const filter = document.getElementById('localFilter');
                 list.innerHTML = '';
 
-                modList.forEach((m, i) => {
-                    const div = document.createElement('div');
-                    div.className = 'mod-item';
-                    div.draggable = true;
+                if (mods.length === 0) {
+                    list.innerHTML = `<div style="text-align:center; padding:20px; color:#666; border:2px dashed #333; border-radius:6px; margin:10px;">No mods added yet.</div>`;
+                    filter.style.display = 'none';
+                    updateOut();
+                    return;
+                }
 
-                    div.innerHTML = `
-            <span><span class="mod-index">${i + 1}</span> <b>${m.title}</b> <small>(${m.wid})</small></span>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <label style="font-size:10px;"><input type="checkbox" ${m.isMap ? 'checked' : ''} onchange="toggleMap(${i})"> Map?</label>
-                <button onclick="editMod(${i})" style="background:#444; padding:2px 5px; font-size:10px;">Edit ID</button>
-                <button onclick="removeMod(${i})" style="background:#600; padding:2px 8px;">X</button>
-            </div>
-        `;
+                filter.style.display = mods.length > 5 ? 'block' : 'none';
 
-                    // Drag and Drop Logic
-                    div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', i); div.classList.add('dragging'); };
-                    div.ondragend = () => div.classList.remove('dragging');
-                    div.ondragover = (e) => e.preventDefault();
-                    div.ondrop = (e) => {
-                        e.preventDefault();
-                        const fromIndex = e.dataTransfer.getData('text/plain');
-                        const movedItem = modList.splice(fromIndex, 1)[0];
-                        modList.splice(i, 0, movedItem);
-                        renderList();
-                        updateOutput();
+                const header = document.createElement('div');
+                header.className = 'list-header';
+                header.innerHTML = `
+            <div><h3 style="display:inline; margin:0;">Added Mods</h3><span class="count-badge">${mods.length}</span></div>
+            <div style="display:flex; gap:8px;">
+                <button id="jumpTop" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↑ Top</button>
+                <button id="jumpBottom" style="background:#222; border:1px solid #444; font-size:11px; padding:5px 8px; color:#fff;">↓ End</button>
+                <button id="clrBtn" style="background:#900; padding:5px 10px; font-size:12px; color:white; border:none; border-radius:4px; cursor:pointer;">Clear All</button>
+            </div>`;
+                list.appendChild(header);
+
+                document.getElementById('jumpTop').onclick = () => list.scrollTo({ top: 0, behavior: 'smooth' });
+                document.getElementById('jumpBottom').onclick = () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+                document.getElementById('clrBtn').onclick = () => { if (confirm("Clear everything?")) { mods = []; saveToDisk(); render(); } };
+
+                mods.forEach((m, i) => {
+                    const d = document.createElement('div');
+                    d.className = 'mod-item';
+                    d.draggable = true;
+                    d.dataset.wid = m.wid;
+                    d.innerHTML = `
+                <span>
+                    <span class="mod-index">${i + 1}</span>
+                    <b class="mod-id-label">${m.name}</b> 
+                    <small style="color:#888;">(${m.wid})</small>
+                </span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label style="font-size:10px; color:#888;">Map?</label>
+                    <input type="checkbox" class="map-check" ${m.isMap ? 'checked' : ''}>
+                    <button type="button" class="edit-btn" style="background:#444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">✎</button>
+                    <button type="button" class="rmv-btn" style="background:#900; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">X</button>
+                </div>`;
+
+                    d.querySelector('.map-check').onchange = (e) => { m.isMap = e.target.checked; saveToDisk(); updateOut(); };
+                    d.querySelector('.edit-btn').onclick = (e) => {
+                        e.stopPropagation();
+                        const label = d.querySelector('.mod-id-label');
+                        const input = document.createElement('input');
+                        input.className = 'edit-input';
+                        input.value = m.name;
+                        input.onblur = () => { m.name = input.value.trim(); saveToDisk(); render(); };
+                        input.onkeydown = (ev) => { if (ev.key === 'Enter') input.blur(); };
+                        label.replaceWith(input);
+                        input.focus();
                     };
+                    d.querySelector('.rmv-btn').onclick = (e) => { e.stopPropagation(); mods.splice(i, 1); saveToDisk(); render(); };
+                    d.ondragstart = () => { d.classList.add('dragging'); draggingWID = m.wid; updateOut(); };
+                    d.ondragend = () => { d.classList.remove('dragging'); draggingWID = null; updateOut(); };
+                    list.appendChild(d);
+                });
+                updateOut();
+            }
 
-                    list.appendChild(div);
+            function updateOut() {
+                const outW = document.getElementById('outW');
+                const outM = document.getElementById('outM');
+                const outMap = document.getElementById('outMap');
+                if (!mods.length) {
+                    outW.innerHTML = ''; outM.innerHTML = ''; outMap.innerHTML = 'Muldraugh, KY';
+                    return;
+                }
+
+                const wStr = mods.map(m => (String(m.wid) === String(draggingWID)) ? `<span class="highlight-text">${m.wid}</span>` : m.wid).join(';');
+                const mStr = mods.map(m => {
+                    const names = m.name.split(';').map(s => isB42 ? `\\${s.trim()}` : s.trim()).join(';');
+                    return (String(m.wid) === String(draggingWID)) ? `<span class="highlight-text">${names}</span>` : names;
+                }).join(';');
+
+                const mapMods = mods.filter(m => m.isMap).map(m => m.name.split(';')[0].trim());
+                mapMods.push("Muldraugh, KY");
+
+                outW.innerHTML = wStr;
+                outM.innerHTML = mStr;
+                outMap.innerHTML = mapMods.join(';');
+            }
+
+            function copyText(id) {
+                const el = document.getElementById(id);
+                navigator.clipboard.writeText(el.textContent).then(() => {
+                    el.classList.add('copy-flash');
+                    setTimeout(() => el.classList.remove('copy-flash'), 600);
                 });
             }
 
-            window.editMod = (index) => {
-                const newID = prompt("Manually edit Mod ID (use ; for multiples):", modList[index].name);
-                if (newID !== null) {
-                    modList[index].name = newID;
-                    updateOutput();
-                }
-            };
+            document.getElementById('modlist').addEventListener('dragover', e => {
+                e.preventDefault();
+                const dragging = document.querySelector('.dragging');
+                if (!dragging) return;
+                const list = document.getElementById('modlist');
+                const afterElement = getDragAfterElement(list, e.clientY);
+                if (afterElement == null) list.appendChild(dragging);
+                else list.insertBefore(dragging, afterElement);
 
-            window.toggleMap = (index) => {
-                modList[index].isMap = !modList[index].isMap;
-                updateOutput();
-            };
+                const currentItems = [...document.querySelectorAll('.mod-item')];
+                mods = currentItems.map(item => mods.find(m => String(m.wid) === String(item.dataset.wid)));
+                saveToDisk();
+                updateOut();
+            });
 
-            window.removeMod = (index) => {
-                modList.splice(index, 1);
-                renderList();
-                updateOutput();
-            };
-
-            function updateOutput() {
-                const sep = isV42 ? "\\" : ";";
-                document.getElementById('outM').textContent = modList.map(m => m.name).join(sep);
-                document.getElementById('outMap').textContent = modList.filter(m => m.isMap).map(m => m.name).join(sep);
-                document.getElementById('outW').textContent = modList.map(m => m.wid).join(sep);
+            function getDragAfterElement(container, y) {
+                const draggables = [...container.querySelectorAll('.mod-item:not(.dragging)')];
+                return draggables.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+                    return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
             }
+        })();
     </script>
 </body>
 
