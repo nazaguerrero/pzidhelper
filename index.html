@@ -13,14 +13,8 @@
             --card: #222;
             --btn: #444;
             --btn-hover: #666;
-            --danger: #cc0000;
             --success: #008800;
             --output: #0f0;
-            --warning: #ffcc00;
-        }
-
-        * {
-            box-sizing: border-box;
         }
 
         body {
@@ -28,10 +22,15 @@
             background: var(--bg);
             color: var(--text);
             padding: 1rem;
-            line-height: 1.5;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* This centers the content */
         }
 
         .container {
+            width: 100%;
             max-width: 800px;
             margin: 0 auto;
         }
@@ -39,7 +38,10 @@
         h1 {
             color: var(--accent);
             text-align: center;
-            margin-bottom: 0.5rem;
+            margin: 10px 0 20px 0;
+            font-size: 2.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .version-toggle {
@@ -514,9 +516,9 @@
                    }
 
                    // 2. Mod ID Extractor (from description)
-                   const matches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+                   const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
                    let validIDs = [];
-                   matches.forEach(m => {
+                   modIdMatches.forEach(m => {
                        const idText = m[1].split('\n')[0].trim();
                        if (idText.length > 0) validIDs.push(idText);
                    });
@@ -525,11 +527,24 @@
                    const finalID = uniqueIDs.length > 0 ? uniqueIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
                    const isMapKeywords = /map|muldraugh|location|cell/i.test(description + title);
 
-                   // 3. Official Dependency Scanner (NO TEXT SCANNING)
+                   // 3. SMART DEPENDENCY SCANNER
                    let deps = [];
+
+                   // A. Add Official Sidebar items
                    if (d.children && Array.isArray(d.children)) {
                        deps = d.children.map(c => String(c.publishedfileid));
                    }
+
+                   // B. Add "Workshop ID" mentions from text, but BLOCK the ones you hate
+                   const blacklist = ['2634426926', '2490220997']; // Bikini Tools & Collection
+                   const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
+                   workshopMatches.forEach(m => {
+                       const foundId = String(m[1]);
+                       if (foundId !== id && !blacklist.includes(foundId)) {
+                           deps.push(foundId);
+                       }
+                   });
+
                    const finalDeps = [...new Set(deps)];
 
                    status.innerHTML = `<span style="color:#00ff00">✅ Added: ${uniqueIDs[0] || title}</span>`;
