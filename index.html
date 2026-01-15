@@ -427,52 +427,34 @@
                 }
             }
 
-            async function getDetails(id) {
+                async function getDetails(id) {
                     try {
-                        const status = document.getElementById('status');
-
-                        // Prepare the POST body for your specific worker path
                         const params = new URLSearchParams();
                         params.append('itemcount', '1');
                         params.append('publishedfileids[0]', id);
                         params.append('includerelations', '1');
 
-                        // Note: We hit /steam-details as defined in your Cloudflare index.js
                         const r = await fetch(`${BASE_PROXY}/steam-details`, {
                             method: 'POST',
                             body: params.toString(),
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
                         });
 
-                        if (!r.ok) throw new Error(`Worker responded with ${r.status}`);
-
                         const j = await r.json();
                         const d = j?.response?.publishedfiledetails?.[0];
-
                         if (!d || d.result !== 1) return null;
 
                         const description = d.description || "";
                         const title = d.title || "";
 
-                        // --- DEPENDENCY SCANNING ---
+                        // Scan for dependencies (Finds 'that DAMN Library')
                         let deps = [];
-
-                        // A. Check official Steam "Required Items" (Children)
-                        if (d.children) {
-                            deps = d.children.map(c => String(c.publishedfileid));
-                        }
-
-                        // B. Scan description for hidden "Workshop ID" text (Finds 'that DAMN Library')
+                        if (d.children) deps = d.children.map(c => String(c.publishedfileid));
                         const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
                         workshopMatches.forEach(m => {
-                            const foundId = String(m[1]);
-                            // Avoid adding the mod itself or the Bikini Tools blacklist
-                            if (foundId !== id && foundId !== '2634426926') {
-                                deps.push(foundId);
-                            }
+                            if (m[1] !== id && m[1] !== '2634426926') deps.push(m[1]);
                         });
 
-                        // --- MOD ID EXTRACTION ---
                         const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
                         let validIDs = modIdMatches.map(m => m[1].split('\n')[0].trim()).filter(x => x.length > 0);
 
@@ -481,28 +463,37 @@
                             name: validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, ''),
                             title: title,
                             isMap: /map|muldraugh|location|cell/i.test(description + title),
-                            needs: [...new Set(deps)] // Removes duplicates
+                            needs: [...new Set(deps)]
                         };
-
-                    } catch (e) {
-                        console.error("Dependency check failed:", e);
-                        return null;
-                    }
+                    } catch (e) { return null; }
                 }
 
             async function fetchInfo(query) {
-                const status = document.getElementById('status');
-                try {
-                    status.textContent = "Searching...";
-                    const targetUrl = `${SEARCH_API}?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
-                    const r = await fetch(PROXY + encodeURIComponent(targetUrl));
-                    const j = await r.json();
-                    const item = j?.response?.publishedfiledetails?.[0];
-                    if (!item) throw new Error();
-                    const d = await getDetails(item.publishedfileid);
-                    if (d) addModToList(d);
-                } catch (e) { status.textContent = "Search failed. Use ID instead."; }
-            }
+                    const status = document.getElementById('status');
+                    try {
+                        status.textContent = "Searching Steam Workshop...";
+                        // This matches your Worker's path: /steam-search
+                        const url = `${BASE_PROXY}/steam-search?key=&appid=108600&search_text=${encodeURIComponent(query)}&numberresults=1&query_type=0`;
+
+                        const r = await fetch(url);
+                        if (!r.ok) throw new Error("Search request failed");
+
+                        const j = await r.json();
+                        const item = j?.response?.publishedfiledetails?.[0];
+
+                        if (!item || item.result !== 1) {
+                            status.textContent = "No mods found with that name.";
+                            return;
+                        }
+
+                        // Use the ID found to get the full details
+                        const details = await getDetails(item.publishedfileid);
+                        if (details) addModToList(details);
+                    } catch (e) {
+                        status.textContent = "Search failed. Use ID instead.";
+                        console.error("Search Error:", e);
+                    }
+                }
 
             function addModToList(mod) {
                 if (modList.some(m => m.wid === mod.wid)) return;
