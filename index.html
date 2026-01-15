@@ -346,12 +346,12 @@
 
 <body>
     <div class="container">
-            <h1>PZ B42 ID Helper</h1>
-            <div class="version-toggle">
-                    <span>Format for:</span>
-                    <button id="v41" class="v-btn">B41 (Legacy)</button>
-                    <button id="v42" class="v-btn active">B42 (Backslash \)</button>
-                </div>
+        <h1>PZ B42 ID Helper</h1>
+        <div class="version-toggle">
+            <label style="font-size: 0.9rem; color: #888; font-weight: bold;">OUTPUT FORMAT:</label>
+            <button id="v41" class="v-btn">B41 (Legacy)</button>
+            <button id="v42" class="v-btn active">B42 (Backslash \)</button>
+        </div>
            
             <div id="input-container">
                     <input type="text" id="mainInput" placeholder="Workshop ID, URL, or Mod Name..." />
@@ -477,29 +477,43 @@
                 return await getDetails(wid, true);
             }
 
-                async function getDetails(id) {
+            async function getDetails(id, isDirect = false) {
                try {
-                   // We append the Steam parameters directly to the corsproxy URL
-                   const url = `${PROXY}&itemcount=1&publishedfileids[0]=${id}&includerelations=1`;
+                   const status = document.getElementById('status');
+                   // This is a more stable public proxy bridge
+                   const proxyUrl = 'https://corsproxy.io/?url=https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/';
 
-                   const r = await fetch(url);
-                   if (!r.ok) throw new Error(`Proxy error: ${r.status}`);
+                   const params = new URLSearchParams();
+                   params.append('itemcount', '1');
+                   params.append('publishedfileids[0]', id);
+                   params.append('includerelations', '1');
+
+                   const r = await fetch(proxyUrl, {
+                       method: 'POST',
+                       body: params,
+                       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                   });
+
+                   if (!r.ok) throw new Error("Steam API unreachable");
 
                    const j = await r.json();
                    const d = j?.response?.publishedfiledetails?.[0];
 
-                   if (!d || d.result !== 1) return null;
+                   if (!d || d.result !== 1) {
+                       status.textContent = "Mod not found on Steam.";
+                       return null;
+                   }
 
                    const description = d.description || "";
                    const title = d.title || "";
 
-                   // Dependency Logic
+                   // Get dependencies (Sidebar + Text)
                    let deps = [];
                    if (d.children) {
                        deps = d.children.map(c => String(c.publishedfileid));
                    }
 
-                   // Add Workshop ID mentions but BLOCK Bikini Tools (2634426926)
+                   // Search text for "Workshop ID" but block Bikini Tools (2634426926)
                    const workshopMatches = [...description.matchAll(/workshop\s*id\s*[:\s-]+\s*(\d+)/gi)];
                    workshopMatches.forEach(m => {
                        const foundId = String(m[1]);
@@ -508,14 +522,29 @@
                        }
                    });
 
+                   // Get the Mod ID (e.g., "Ranger91")
+                   const modIdMatches = [...description.matchAll(/mod\s*id\s*:\s*([a-zA-Z0-9_\-.\s]+)/gi)];
+                   let validIDs = [];
+                   modIdMatches.forEach(m => {
+                       const idText = m[1].split('\n')[0].trim();
+                       if (idText.length > 0) validIDs.push(idText);
+                   });
+
+                   const finalModID = validIDs.length > 0 ? validIDs.join(';') : title.replace(/[^a-zA-Z0-9_\-]/g, '');
+
+                   status.innerHTML = `<span style="color:#00ff00">✅ Found: ${title}</span>`;
+
                    return {
                        wid: id,
-                       name: title.replace(/[^a-zA-Z0-9_\-]/g, ''),
+                       name: finalModID,
+                       isMap: /map|muldraugh|location|cell/i.test(description + title),
                        title: title,
                        needs: [...new Set(deps)]
                    };
+
                } catch (e) {
-                   console.error("Fetch failed:", e);
+                   console.error("Fetch error:", e);
+                   document.getElementById('status').textContent = "Proxy Error. Try again in a moment.";
                    return null;
                }
            }
